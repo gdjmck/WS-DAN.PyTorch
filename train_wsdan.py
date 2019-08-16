@@ -51,7 +51,7 @@ def main():
     # Initialize model
     ##################################
     image_size = 512
-    num_classes = 1000
+    num_classes = 98
     num_attentions = 32
     start_epoch = 0
 
@@ -198,7 +198,7 @@ def train(**kwargs):
 
         # metrics: top-1, top-3, top-5 error
         with torch.no_grad():
-            epoch_acc[0] += accuracy(y_pred, y, topk=(1, 3, 5))
+            epoch_acc[0] += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
 
         ##################################
         # Attention Cropping
@@ -229,7 +229,7 @@ def train(**kwargs):
 
         # metrics: top-1, top-3, top-5 error
         with torch.no_grad():
-            epoch_acc[1] += accuracy(y_pred, y, topk=(1, 3, 5))
+            epoch_acc[1] += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
 
         ##################################
         # Attention Dropping
@@ -252,7 +252,7 @@ def train(**kwargs):
 
         # metrics: top-1, top-3, top-5 error
         with torch.no_grad():
-            epoch_acc[2] += accuracy(y_pred, y, topk=(1, 3, 5))
+            epoch_acc[2] += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
 
         # end of this batch
         batches += 1
@@ -349,7 +349,7 @@ def validate(**kwargs):
             epoch_loss += batch_loss.item()
 
             # metrics: top-1, top-3, top-5 error
-            epoch_acc += accuracy(y_pred, y, topk=(1, 3, 5))
+            epoch_acc += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
 
             # end of this batch
             batches += 1
