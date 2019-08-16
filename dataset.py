@@ -76,7 +76,7 @@ class ImageFolderWithName(datasets.ImageFolder):
         ])
         assert phase in ['train', 'val', 'test']
         root = os.path.join(config['datapath'], phase)
-        super().__init__(root=root, transform=self.transfroms, *args, **kwargs)
+        super().__init__(root=root, transform=self.transforms, *args, **kwargs)
         self.return_fn = phase == 'test'
 
     def __getitem__(self, i):
