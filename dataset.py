@@ -12,7 +12,7 @@ __all__ = ['CustomDataset']
 
 config = {
     # e.g. train/val/test set should be located in os.path.join(config['datapath'], 'train/val/test')
-    'datapath': 'DATA_PATH',
+    'datapath': '/home/chk/cars_stanford/cars_train_labelled',
 }
 
 
