@@ -177,7 +177,7 @@ def train(**kwargs):
 
         # obtain data for training
         X = X.to(torch.device("cuda"))
-        y = y.to(torch.device("cuda"))
+        y = y.to(torch.device("cuda")) - 1
 
         ##################################
         # Raw Image
