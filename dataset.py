@@ -8,7 +8,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torch.utils.data import Dataset
 
-__all__ = ['CustomDataset']
+__all__ = ['CustomDataset', 'ImageFolderWithName']
 
 
 config = {
