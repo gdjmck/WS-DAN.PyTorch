@@ -50,7 +50,7 @@ def main():
     ##################################
     # Initialize model
     ##################################
-    image_size = (512, 512)
+    image_size = 512
     num_classes = 1000
     num_attentions = 32
     start_epoch = 0
@@ -99,8 +99,8 @@ def main():
     ##################################
     # Load dataset
     ##################################
-    train_dataset, validate_dataset = CustomDataset(phase='train', shape=image_size), \
-                                      CustomDataset(phase='val'  , shape=image_size)
+    train_dataset, validate_dataset = ImageFolderWithName(phase='train', shape=image_size), \
+                                      ImageFolderWithName(phase='val'  , shape=image_size)
 
     train_loader, validate_loader = DataLoader(train_dataset, batch_size=options.batch_size, shuffle=True,
                                                num_workers=options.workers, pin_memory=True), \

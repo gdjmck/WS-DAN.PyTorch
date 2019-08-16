@@ -63,3 +63,24 @@ class CustomDataset(Dataset):
 
     def __len__(self):
         return len(self.data_list)
+
+
+class ImageFolderWithName(datasets.ImageFolder):
+    def __init__(self, phase='train', shape=512, *args, **kwargs):
+        self.transforms = transforms.Compose([
+            transforms.Resize(shape),
+            transforms.RandomCrop((shape, shape)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+        assert phase in ['train', 'val', 'test']
+        root = os.path.join(config['datapath'], phase)
+        super().__init__(root=root, transform=self.transfroms, *args, **kwargs)
+        self.return_fn = phase == 'test'
+
+    def __getitem__(self, i):
+        img, label = super(ImageFolderWithName, self).__getitem__(i)
+        if not self.return_fn:
+            return img, label
+        else:
+            return img, label, self.imgs[i]
