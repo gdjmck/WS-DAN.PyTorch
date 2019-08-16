@@ -82,6 +82,6 @@ class ImageFolderWithName(datasets.ImageFolder):
     def __getitem__(self, i):
         img, label = super(ImageFolderWithName, self).__getitem__(i)
         if not self.return_fn:
-            return img, label
+            return img, int(label)
         else:
-            return img, label, self.imgs[i]
+            return img, int(label), self.imgs[i]
