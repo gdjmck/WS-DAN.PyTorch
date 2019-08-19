@@ -18,7 +18,7 @@ parser.add_option('-c', '--ckpt', dest='ckpt', default=False,
                     help='load checkpoint model (default: False)')
 parser.add_option('-v', '--verbose', dest='verbose', default=100, type='int',
                     help='show information for each <verbose> iterations (default: 100)')
-parser.add_option('--testset', required=True, type=str, help='directory of testset data')
+parser.add_option('--testset', type=str, help='directory of testset data')
 parser.add_option('--sd', '--save-dir', dest='save_dir', default='./models',
                     help='saving directory of .ckpt models (default: ./models)')
 
@@ -63,7 +63,7 @@ def test():
     ##################################
     # Load dataset
     ##################################   
-    test_dataset = CustomDataset(phase='test')
+    test_dataset = dataset.CustomDataset(phase='test')
 
     for (x, y) in iter(test_dataset):
         print(x.shape, y)
