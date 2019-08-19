@@ -33,7 +33,7 @@ class CustomDataset(Dataset):
         __len__(self):                  returns the length of dataset
     """
 
-    def __init__(self, phase='train', shape=(512, 512)):
+    def __init__(self, phase='train', shape=512):
         assert phase in ['train', 'val', 'test']
         self.phase = phase
         self.data_path = os.path.join(config['datapath'], phase)
@@ -44,7 +44,8 @@ class CustomDataset(Dataset):
 
         # transform
         self.transform = transforms.Compose([
-            transforms.Resize(size=(self.shape[0], self.shape[1])),
+            transforms.Resize(size=(self.shape,)),
+            transforms.RandomCrop((self.shape, self.shape)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
