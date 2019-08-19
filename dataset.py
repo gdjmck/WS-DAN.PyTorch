@@ -44,7 +44,7 @@ class CustomDataset(Dataset):
 
         # transform
         self.transform = transforms.Compose([
-            transforms.Resize(size=(self.shape,)),
+            transforms.Resize(size=self.shape),
             transforms.RandomCrop((self.shape, self.shape)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -53,7 +53,7 @@ class CustomDataset(Dataset):
     def __getitem__(self, item):
         image = Image.open(os.path.join(self.data_path, self.data_list[item])).convert('RGB')  # (C, H, W)
         image = self.transform(image)
-        assert image.size(1) == self.shape[0] and image.size(2) == self.shape[1]
+        assert image.size(1) == self.shape and image.size(2) == self.shape
 
         if self.phase != 'test':
             # filename of image should have 'id_label.jpg/png' form
