@@ -1,5 +1,6 @@
 import logging
 import warnings
+import pickle
 import numpy as np
 import torch
 import torch.nn as nn
@@ -70,6 +71,7 @@ def test():
     ##################################   
     test_dataset = dataset.CustomDataset(phase='test')
 
+    result = {}
     net.eval()
     with torch.no_grad():
         for (x, y) in iter(test_dataset):
@@ -102,11 +104,15 @@ def test():
             drop_mask = F.upsample_bilinear(attention_map, size=(x.size(2), x.size(3))) <= theta_d
             drop_images = x * drop_mask.float()         
             y_drop_pred, _, _ = net(drop_images)   
-            print(y_pred.shape, y_crop_pred.shape, y_drop_pred.shape)
             _, y_pred = y_pred.topk(1, 1, True, True)
             _, y_crop_pred = y_crop_pred.topk(1, 1, True, True)
             _, y_drop_pred = y_drop_pred.topk(1, 1, True, True)
-            print(y_pred, y_crop_pred, y_drop_pred)
+            result[y] = {'pred': y_pred.cpu().numpy()[0, 0],
+                         'pred_crop': y_crop_pred.cpu().numpy()[0, 0],
+                         'pred_drop': y_drop_pred.cpu().numpy()[0, 0]}
+    
+    with open('result.pkl', 'wb') as f:
+        pickle.dump(result, f)
 
 if __name__ == '__main__':
     dataset.config['datapath'] = options.testset
