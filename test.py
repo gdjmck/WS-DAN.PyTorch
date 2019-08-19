@@ -65,8 +65,40 @@ def test():
     ##################################   
     test_dataset = dataset.CustomDataset(phase='test')
 
-    for (x, y) in iter(test_dataset):
-        print(x.shape, y)
+    net.eval()
+    with torch.no_grad():
+        for (x, y) in iter(test_dataset):
+            x = x.unsqueeze(0)
+            x = x.to(torch.device('cuda'))
+
+            ##################################
+            # Raw Image
+            ##################################
+            y_pred, feature_matrix, attention_map = net(x)   
+
+            ##################################
+            # Attention Cropping
+            ##################################
+            crop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3))) > theta_c
+            crop_images = []
+            for batch_index in range(crop_mask.size(0)):
+                nonzero_indices = torch.nonzero(crop_mask[batch_index, 0, ...])
+                height_min = nonzero_indices[:, 0].min()
+                height_max = nonzero_indices[:, 0].max()
+                width_min = nonzero_indices[:, 1].min()
+                width_max = nonzero_indices[:, 1].max()
+                crop_images.append(F.upsample_bilinear(X[batch_index:batch_index + 1, :, height_min:height_max, width_min:width_max], size=crop_size))
+            crop_images = torch.cat(crop_images, dim=0)   
+            y_crop_pred, _, _ = net(crop_images)  
+
+            ##################################
+            # Attention Dropping
+            ##################################
+            drop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3))) <= theta_d
+            drop_images = X * drop_mask.float()         
+            y_drop_pred, _, _ = net(drop_images)   
+            print(y_pred.shape, y_crop_pred.shape, y_drop_pred.shape)
+
 
 if __name__ == '__main__':
     dataset.config['datapath'] = options.testset
