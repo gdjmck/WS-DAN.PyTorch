@@ -26,6 +26,11 @@ parser.add_option('--sd', '--save-dir', dest='save_dir', default='./models',
 
 
 def test():
+    # Default Parameters
+    beta = 1e-4
+    theta_c = 0.5
+    theta_d = 0.5
+    crop_size = (256, 256)  # size of cropped images for 'See Better'
     ##################################
     # Initialize model
     ##################################
@@ -79,7 +84,7 @@ def test():
             ##################################
             # Attention Cropping
             ##################################
-            crop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3))) > theta_c
+            crop_mask = F.upsample_bilinear(attention_map, size=(x.size(2), x.size(3))) > theta_c
             crop_images = []
             for batch_index in range(crop_mask.size(0)):
                 nonzero_indices = torch.nonzero(crop_mask[batch_index, 0, ...])
@@ -87,15 +92,15 @@ def test():
                 height_max = nonzero_indices[:, 0].max()
                 width_min = nonzero_indices[:, 1].min()
                 width_max = nonzero_indices[:, 1].max()
-                crop_images.append(F.upsample_bilinear(X[batch_index:batch_index + 1, :, height_min:height_max, width_min:width_max], size=crop_size))
+                crop_images.append(F.upsample_bilinear(x[batch_index:batch_index + 1, :, height_min:height_max, width_min:width_max], size=crop_size))
             crop_images = torch.cat(crop_images, dim=0)   
             y_crop_pred, _, _ = net(crop_images)  
 
             ##################################
             # Attention Dropping
             ##################################
-            drop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3))) <= theta_d
-            drop_images = X * drop_mask.float()         
+            drop_mask = F.upsample_bilinear(attention_map, size=(x.size(2), x.size(3))) <= theta_d
+            drop_images = x * drop_mask.float()         
             y_drop_pred, _, _ = net(drop_images)   
             print(y_pred.shape, y_crop_pred.shape, y_drop_pred.shape)
 
