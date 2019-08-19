@@ -7,14 +7,18 @@ from PIL import Image
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torch.utils.data import Dataset
+import pickle
 
 __all__ = ['CustomDataset', 'ImageFolderWithName']
 
 
 config = {
     # e.g. train/val/test set should be located in os.path.join(config['datapath'], 'train/val/test')
-    'datapath': '/home/chk/cars_stanford/cars_train_labelled',
+    'datapath': '/home/chk/car_kaggle/',
 }
+
+with open('/home/chk/car_kaggle/name2id.pkl', 'rb') as f:
+    name2id = pickle.load(f)
 
 
 class CustomDataset(Dataset):
@@ -83,6 +87,6 @@ class ImageFolderWithName(datasets.ImageFolder):
     def __getitem__(self, i):
         img, label = super(ImageFolderWithName, self).__getitem__(i)
         if not self.return_fn:
-            return img, int(label)
+            return img, name2id[label]
         else:
-            return img, int(label), self.imgs[i]
+            return img, name2id[label], self.imgs[i]
