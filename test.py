@@ -103,7 +103,10 @@ def test():
             drop_images = x * drop_mask.float()         
             y_drop_pred, _, _ = net(drop_images)   
             print(y_pred.shape, y_crop_pred.shape, y_drop_pred.shape)
-
+            _, y_pred = y_pred.topk(1, 1, True, True)
+            _, y_crop_pred = y_crop_pred.topk(1, 1, True, True)
+            _, y_drop_pred = y_drop_pred.topk(1, 1, True, True)
+            print(y_pred, y_crop_pred, y_drop_pred)
 
 if __name__ == '__main__':
     dataset.config['datapath'] = options.testset
