@@ -17,9 +17,6 @@ config = {
     'datapath': '/home/chk/car_kaggle/',
 }
 
-with open('/home/chk/car_kaggle/name2id.pkl', 'rb') as f:
-    name2id = pickle.load(f)
-
 
 class CustomDataset(Dataset):
     """
@@ -86,7 +83,8 @@ class ImageFolderWithName(datasets.ImageFolder):
 
     def __getitem__(self, i):
         img, label = super(ImageFolderWithName, self).__getitem__(i)
+        assert label <= 98*2
         if not self.return_fn:
-            return img, name2id[label]
+            return img, label
         else:
-            return img, name2id[label], self.imgs[i]
+            return img, label, self.imgs[i]

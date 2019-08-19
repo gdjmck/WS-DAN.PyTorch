@@ -51,7 +51,7 @@ def main():
     # Initialize model
     ##################################
     image_size = 512
-    num_classes = 98
+    num_classes = 98*2
     num_attentions = 32
     start_epoch = 0
 
@@ -177,7 +177,7 @@ def train(**kwargs):
 
         # obtain data for training
         X = X.to(torch.device("cuda"))
-        y = y.to(torch.device("cuda")) - 1
+        y = y.to(torch.device("cuda"))
 
         ##################################
         # Raw Image
