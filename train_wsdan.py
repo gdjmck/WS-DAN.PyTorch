@@ -104,9 +104,9 @@ def main():
     train_dataset, validate_dataset = ImageFolderWithName(phase='train', shape=image_size), \
                                       ImageFolderWithName(phase='val'  , shape=image_size)
 
-    train_loader, validate_loader = DataLoader(train_dataset, sampler=CustomSampler(train_dataset, batch_size=options.batch_size, batch_k=options.batch_k),
+    train_loader, validate_loader = DataLoader(train_dataset, batch_sampler=CustomSampler(train_dataset, batch_size=options.batch_size, batch_k=options.batch_k),
                                                num_workers=options.workers, pin_memory=True), \
-                                    DataLoader(validate_dataset, sampler=CustomSampler(validate_dataset, batch_size=options.batch_size * 4, batch_k=options.batch_k),
+                                    DataLoader(validate_dataset, batch_sampler=CustomSampler(validate_dataset, batch_size=options.batch_size * 4, batch_k=options.batch_k),
                                                num_workers=options.workers, pin_memory=True)
 
     optimizer = torch.optim.SGD(net.parameters(), lr=options.lr, momentum=0.9, weight_decay=0.00001)

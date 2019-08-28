@@ -8,10 +8,6 @@ arXiv:1901.09891
 Created: May 04,2019 - Yuchong Gu
 Revised: May 07,2019 - Yuchong Gu
 """
-import sys
-import os
-sys.path.append(os.getcwd())
-print(sys.path)
 import logging
 import numpy as np
 import torch
