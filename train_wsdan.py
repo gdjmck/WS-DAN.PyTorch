@@ -28,6 +28,8 @@ def main():
                       help='number of epochs (default: 80)')
     parser.add_option('-b', '--batch-size', dest='batch_size', default=16, type='int',
                       help='batch size (default: 16)')
+    parser.add_option('-k', '--batch-k', dest='batch_k', default=4, type='int',
+                      help='number of samples from same class (default: 4)')
     parser.add_option('-c', '--ckpt', dest='ckpt', default=False,
                       help='load checkpoint model (default: False)')
     parser.add_option('-v', '--verbose', dest='verbose', default=100, type='int',
@@ -51,7 +53,7 @@ def main():
     # Initialize model
     ##################################
     image_size = 512
-    num_classes = 98
+    num_classes = 98*2
     num_attentions = 32
     start_epoch = 0
 
@@ -102,9 +104,9 @@ def main():
     train_dataset, validate_dataset = ImageFolderWithName(phase='train', shape=image_size), \
                                       ImageFolderWithName(phase='val'  , shape=image_size)
 
-    train_loader, validate_loader = DataLoader(train_dataset, batch_size=options.batch_size, shuffle=True,
+    train_loader, validate_loader = DataLoader(train_dataset, sampler=CustomSampler(train_dataset, batch_size=options.batch_size, batch_k=options.batch_k),
                                                num_workers=options.workers, pin_memory=True), \
-                                    DataLoader(validate_dataset, batch_size=options.batch_size * 4, shuffle=False,
+                                    DataLoader(validate_dataset, sampler=CustomSampler(validate_dataset, batch_size=options.batch_size * 4, batch_k=options.batch_k),
                                                num_workers=options.workers, pin_memory=True)
 
     optimizer = torch.optim.SGD(net.parameters(), lr=options.lr, momentum=0.9, weight_decay=0.00001)

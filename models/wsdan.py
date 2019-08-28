@@ -8,6 +8,10 @@ arXiv:1901.09891
 Created: May 04,2019 - Yuchong Gu
 Revised: May 07,2019 - Yuchong Gu
 """
+import sys
+import os
+sys.path.append(os.getcwd())
+print(sys.path)
 import logging
 import numpy as np
 import torch
@@ -79,6 +83,9 @@ class WSDAN(nn.Module):
         # Classification Layer
         self.fc = nn.Linear(self.M * self.num_features * self.expansion, self.num_classes)
 
+        # Metric Learning Layer
+        self.metric = nn.Linear(self.M * self.num_features * self.expansion, 512)
+
         logging.info('WSDAN: using %s as feature extractor' % self.baseline)
 
     def forward(self, x):
@@ -86,11 +93,15 @@ class WSDAN(nn.Module):
 
         # Feature Maps, Attention Maps and Feature Matrix
         feature_maps = self.features(x)
+        print('\tfeature_maps:', feature_maps.shape)
         attention_maps = self.attentions(feature_maps)
-        feature_matrix = self.bap(feature_maps, attention_maps)
+        feature_matrix = self.bap(feature_maps, attention_maps) # (B, D, 1)
 
         # Classification
         p = self.fc(feature_matrix.view(batch_size, -1))
+
+        # Metric
+        metric = self.metric(feature_matrix.view(batch_size, -1))
 
         # Generate Attention Map
         H, W = attention_maps.size(2), attention_maps.size(3)
@@ -111,7 +122,7 @@ class WSDAN(nn.Module):
         attention_map = (attention_map - attention_map_min) / (attention_map_max - attention_map_min)  # (B, H * W)
         attention_map = attention_map.view(batch_size, 1, H, W)  # (B, 1, H, W)
 
-        return p, feature_matrix, attention_map
+        return p, feature_matrix, attention_map, metric
 
     def load_state_dict(self, state_dict, strict=True):
         model_dict = self.state_dict()
@@ -129,22 +140,24 @@ class WSDAN(nn.Module):
         super(WSDAN, self).load_state_dict(model_dict)
 
 
-# if __name__ == '__main__':
-#     net = WSDAN(num_classes=1000)
-#     net.train()
-#
-#     for i in range(10):
-#         input_test = torch.randn(10, 3, 512, 512)
-#         p, feature_matrix, attention_map = net(input_test)
-#
-#     print(p.shape)
-#     print(feature_matrix.shape)
-#     print(attention_map.shape)
-#
-#     net.eval()
-#     input_test = torch.randn(10, 3, 512, 352)
-#     p, feature_matrix, attention_map = net(input_test)
-#
-#     print(p.shape)
-#     print(feature_matrix.shape)
-#     print(attention_map.shape)
+if __name__ == '__main__':
+    net = WSDAN(num_classes=1000)
+    '''
+    net.train()
+
+    for i in range(10):
+        input_test = torch.randn(10, 3, 512, 512)
+        p, feature_matrix, attention_map = net(input_test)
+
+    print(p.shape)
+    print(feature_matrix.shape)
+    print(attention_map.shape)
+    '''
+    net.eval()
+    input_test = torch.randn(2, 3, 512, 352)
+    with torch.no_grad():
+        p, feature_matrix, attention_map = net(input_test)
+
+    print(p.shape)
+    print(feature_matrix.shape)
+    print(attention_map.shape)

@@ -7,9 +7,11 @@ from PIL import Image
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torch.utils.data import Dataset
+from torch.utils.data.sampler import Sampler
 import pickle
+import numpy as np
 
-__all__ = ['CustomDataset', 'ImageFolderWithName']
+__all__ = ['CustomDataset', 'ImageFolderWithName', 'CustomSampler']
 
 
 config = {
@@ -90,3 +92,25 @@ class ImageFolderWithName(datasets.ImageFolder):
             return img, name2id[label]
         else:
             return img, name2id[label], self.imgs[i]
+
+
+class CustomSampler(Sampler):
+    def __init__(self, dataset, batch_size=32, batch_k=4):
+        assert batch_size % batch_k == 0
+        self.batch_size = batch_size
+        self.batch_k = batch_k
+        self.classes_per_batch = batch_size / batch_k
+        self.labels = [data[1] for data in dataset.imgs]
+        self.unique_labels = np.unique(self.labels)
+
+    def __iter__(self):
+        for i in range(int(len(self.labels) / len(self.unique_labels))):
+            class_ids = np.random.choice(self.unique_labels, self.classes_per_batch, replace=False)
+            indices = []
+            for label in class_ids:
+                indices.extend(np.random.choice(np.nonzero(self.labels == label), self.batch_k, replace=False))
+            yield indices
+
+
+if __name__ == '__main__':
+    pass
