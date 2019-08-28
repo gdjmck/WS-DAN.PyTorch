@@ -97,7 +97,7 @@ class CustomSampler(Sampler):
         assert batch_size % batch_k == 0
         self.batch_size = batch_size
         self.batch_k = batch_k
-        self.classes_per_batch = batch_size / batch_k
+        self.classes_per_batch = int(batch_size / batch_k)
         self.labels = [data[1] for data in dataset.imgs]
         self.unique_labels = np.unique(self.labels)
 
