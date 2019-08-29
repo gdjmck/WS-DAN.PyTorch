@@ -89,7 +89,7 @@ class WSDAN(nn.Module):
 
         # Feature Maps, Attention Maps and Feature Matrix
         feature_maps = self.features(x)
-        print('\tfeature_maps:', feature_maps.shape)
+        # print('\tfeature_maps:', feature_maps.shape)
         attention_maps = self.attentions(feature_maps)
         feature_matrix = self.bap(feature_maps, attention_maps) # (B, D, 1)
 

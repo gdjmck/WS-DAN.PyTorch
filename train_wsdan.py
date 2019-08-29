@@ -190,7 +190,8 @@ def train(**kwargs):
         y_pred, feature_matrix, attention_map, metric = net(X)
 
         # loss
-        batch_loss = loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y]) + loss_metric(metric)
+        metric_loss = loss_metric(metric)
+        batch_loss = loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y]) + metric_loss[0] + metric_loss[1]
         epoch_loss[0] += batch_loss.item()
 
         # backward
@@ -224,7 +225,8 @@ def train(**kwargs):
         y_pred, _, _, metric = net(crop_images)
 
         # loss
-        batch_loss = loss(y_pred, y) + loss_metric(metric)
+        metric_loss = loss_metric(metric)
+        batch_loss = loss(y_pred, y) + metric_loss[0] + metric_loss[1]
         epoch_loss[1] += batch_loss.item()
 
         # backward
@@ -328,7 +330,7 @@ def validate(**kwargs):
             ##################################
             # Raw Image
             ##################################
-            y_pred_raw, feature_matrix, attention_map = net(X)
+            y_pred_raw, feature_matrix, attention_map, _ = net(X)
 
             ##################################
             # Object Localization and Refinement
@@ -344,7 +346,7 @@ def validate(**kwargs):
                 crop_images.append(F.upsample_bilinear(X[batch_index:batch_index + 1, :, height_min:height_max, width_min:width_max], size=crop_size))
             crop_images = torch.cat(crop_images, dim=0)
 
-            y_pred_crop, _, _ = net(crop_images)
+            y_pred_crop, _, _, _ = net(crop_images)
 
             # final prediction
             y_pred = (y_pred_raw + y_pred_crop) / 2

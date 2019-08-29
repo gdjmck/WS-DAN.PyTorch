@@ -29,12 +29,13 @@ def L_metric(feat1, feat2, same_class=True):
 
 class MetricLoss(torch.nn.Module):
     def __init__(self, batch_k):
+        super().__init__()
         self.batch_k = batch_k
 
     def forward(self, x):
         assert x.size(0) % self.batch_k == 0
         loss_homo, loss_heter = 0, 0
-        for i in range(x.size(0)/self.batch_k):
+        for i in range(int(x.size(0)/self.batch_k)):
             for j in range(self.batch_k):
                 for k in range(j+1, self.batch_k):
                     loss_homo += L_metric(x[i*self.batch_k+j, ...], x[i*self.batch_k+k, ...])
