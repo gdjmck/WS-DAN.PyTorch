@@ -100,7 +100,6 @@ class CustomSampler(Sampler):
         self.classes_per_batch = int(batch_size / batch_k)
         self.labels = np.array([data[1] for data in dataset.imgs])
         self.unique_labels = np.unique(self.labels)
-        print('labels:', self.labels[:5], '\nunique:', self.unique_labels)
 
     def __iter__(self):
         for i in range(int(len(self.labels) / len(self.unique_labels))):

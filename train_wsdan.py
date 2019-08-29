@@ -15,7 +15,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from optparse import OptionParser
 
-from utils import accuracy
+from utils import accuracy, MetricLoss
 from models import *
 from dataset import *
 
@@ -111,6 +111,7 @@ def main():
 
     optimizer = torch.optim.SGD(net.parameters(), lr=options.lr, momentum=0.9, weight_decay=0.00001)
     loss = nn.CrossEntropyLoss()
+    loss_metric = MetricLoss(options.batch_k)
 
     ##################################
     # Learning rate scheduling
@@ -131,6 +132,7 @@ def main():
               net=net,
               feature_center=feature_center,
               loss=loss,
+              loss_metric=loss_metric,
               optimizer=optimizer,
               save_freq=options.save_freq,
               save_dir=options.save_dir,
@@ -147,6 +149,7 @@ def train(**kwargs):
     data_loader = kwargs['data_loader']
     net = kwargs['net']
     loss = kwargs['loss']
+    loss_metric = kwargs['loss_metric']
     optimizer = kwargs['optimizer']
     feature_center = kwargs['feature_center']
     epoch = kwargs['epoch']
@@ -184,10 +187,10 @@ def train(**kwargs):
         ##################################
         # Raw Image
         ##################################
-        y_pred, feature_matrix, attention_map = net(X)
+        y_pred, feature_matrix, attention_map, metric = net(X)
 
         # loss
-        batch_loss = loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y])
+        batch_loss = loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y]) + loss_metric(metric)
         epoch_loss[0] += batch_loss.item()
 
         # backward
@@ -218,10 +221,10 @@ def train(**kwargs):
             crop_images = torch.cat(crop_images, dim=0)
 
         # crop images forward
-        y_pred, _, _ = net(crop_images)
+        y_pred, _, _, metric = net(crop_images)
 
         # loss
-        batch_loss = loss(y_pred, y)
+        batch_loss = loss(y_pred, y) + loss_metric(metric)
         epoch_loss[1] += batch_loss.item()
 
         # backward
@@ -241,7 +244,7 @@ def train(**kwargs):
             drop_images = X * drop_mask.float()
 
         # drop images forward
-        y_pred, _, _ = net(drop_images)
+        y_pred, _, _, _ = net(drop_images)
 
         # loss
         batch_loss = loss(y_pred, y)
