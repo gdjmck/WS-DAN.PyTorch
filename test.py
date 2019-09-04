@@ -69,19 +69,21 @@ def test():
     ##################################
     # Load dataset
     ##################################   
-    test_dataset = dataset.CustomDataset(phase='test')
+    test_dataset = dataset.ImageFolderWithName(phase='val')
 
     result = {}
     net.eval()
     with torch.no_grad():
-        for (x, y) in iter(test_dataset):
+        for (x, y, fn) in iter(test_dataset):
             x = x.unsqueeze(0)
             x = x.to(torch.device('cuda'))
 
             ##################################
             # Raw Image
             ##################################
-            y_pred, feature_matrix, attention_map = net(x)   
+            y_pred, feature_matrix, attention_map, metric = net(x)
+            result[fn] = metric.cpu().numpy()
+            continue
 
             ##################################
             # Attention Cropping

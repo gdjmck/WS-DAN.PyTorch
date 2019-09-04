@@ -81,7 +81,7 @@ class ImageFolderWithName(datasets.ImageFolder):
         assert phase in ['train', 'val', 'test']
         root = os.path.join(config['datapath'], phase)
         super().__init__(root=root, transform=self.transforms, *args, **kwargs)
-        self.return_fn = phase == 'test'
+        self.return_fn = (phase == 'test') or (phase == 'val')
 
     def __getitem__(self, i):
         img, label = super(ImageFolderWithName, self).__getitem__(i)
