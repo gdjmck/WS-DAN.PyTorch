@@ -326,7 +326,7 @@ def validate(**kwargs):
     start_time = time.time()
     net.eval()
     with torch.no_grad():
-        for i, (X, y) in enumerate(data_loader):
+        for i, (X, y, _) in enumerate(data_loader):
             batch_start = time.time()
 
             # obtain data
