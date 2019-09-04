@@ -102,7 +102,7 @@ class WSDAN(nn.Module):
         # Metric
         metric = self.compact(feature_matrix)
         metric = self.metric(metric.view(batch_size, -1))
-        metric = nn.functional.normalize(metric)
+        metric = nn.functional.normalize(metric, dim=-1)
 
         # Generate Attention Map
         H, W = attention_maps.size(2), attention_maps.size(3)

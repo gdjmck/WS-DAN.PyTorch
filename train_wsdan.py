@@ -108,7 +108,7 @@ def main():
 
     train_loader, validate_loader = DataLoader(train_dataset, batch_sampler=CustomSampler(train_dataset, batch_size=options.batch_size, batch_k=options.batch_k, len=options.sampler_len),
                                                num_workers=options.workers, pin_memory=True), \
-                                    DataLoader(validate_dataset, batch_sampler=CustomSampler(validate_dataset, batch_size=options.batch_size, batch_k=options.batch_k, len=int(options.sampler_len/4)),
+                                    DataLoader(validate_dataset, batch_sampler=CustomSampler(validate_dataset, batch_size=options.batch_size, batch_k=options.batch_k, len=options.sampler_len),
                                                num_workers=options.workers, pin_memory=True)
 
     optimizer = torch.optim.SGD(net.parameters(), lr=options.lr, momentum=0.9, weight_decay=0.00001)
@@ -193,7 +193,7 @@ def train(**kwargs):
 
         # loss
         metric_loss = loss_metric(metric)
-        batch_loss = loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y]) + metric_loss[0] + metric_loss[1]
+        batch_loss = loss(y_pred, y) + 0.5*l2_loss(feature_matrix, feature_center[y]) + metric_loss[0] + metric_loss[1]
         epoch_loss[0] += batch_loss.item()
         epoch_loss[3] += metric_loss[0].item()
         epoch_loss[4] += metric_loss[1].item()
