@@ -80,9 +80,10 @@ class WSDAN(nn.Module):
         self.fc = nn.Linear(self.M * self.num_features * self.expansion, self.num_classes)
 
         # Metric Learning Layer
-        self.compact = nn.Sequential([nn.Conv1d(self.M, 1, kernel_size=1, bias=False),
-                                    nn.ReLU(), nn.BatchNorm1d(self.num_features * self.expansion)])
-        self.metric = nn.Linear(self.num_features * self.expansion, self.num_features)
+        self.compact = nn.Sequential(nn.Conv1d(self.M, 1, kernel_size=1, bias=False),
+                                    nn.ReLU())
+        self.metric = nn.Sequential(nn.BatchNorm1d(self.num_features * self.expansion),
+                                    nn.Linear(self.num_features * self.expansion, self.num_features))
 
         logging.info('WSDAN: using %s as feature extractor' % self.baseline)
 
