@@ -170,7 +170,7 @@ def train(**kwargs):
 
     # metrics initialization
     batches = 0
-    epoch_loss = np.array([0, 0, 0, 0, 0], dtype='float')  # Loss on Raw/Crop/Drop/Raw_metric/Crop_metric Images
+    epoch_loss = np.array([0, 0, 0, 0, 0, 0, 0], dtype='float')  # Loss on Raw/Crop/Drop/Raw_metric(homo+heter)/Crop_metric(homo+heter) Images
     epoch_acc = np.array([[0, 0, 0],
                           [0, 0, 0],
                           [0, 0, 0]], dtype='float')  # Top-1/3/5 Accuracy for Raw/Crop/Drop Images
@@ -195,7 +195,8 @@ def train(**kwargs):
         metric_loss = loss_metric(metric)
         batch_loss = loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y]) + metric_loss[0] + metric_loss[1]
         epoch_loss[0] += batch_loss.item()
-        epoch_loss[3] += metric_loss.item()
+        epoch_loss[3] += metric_loss[0].item()
+        epoch_loss[4] += metric_loss[1].item()
 
         # backward
         optimizer.zero_grad()
@@ -231,7 +232,8 @@ def train(**kwargs):
         metric_loss = loss_metric(metric)
         batch_loss = loss(y_pred, y) + metric_loss[0] + metric_loss[1]
         epoch_loss[1] += batch_loss.item()
-        epoch_loss[4] += metric_loss.item()
+        epoch_loss[5] += metric_loss[0].item()
+        epoch_loss[6] += metric_loss[1].item()
 
         # backward
         optimizer.zero_grad()
@@ -269,10 +271,10 @@ def train(**kwargs):
         batches += 1
         batch_end = time.time()
         if (i + 1) % verbose == 0:
-            logging.info('\tBatch %d: (Raw) Loss %.4f, Accuracy: (%.2f, %.2f, %.2f), (Crop) Loss %.4f, Accuracy: (%.2f, %.2f, %.2f), (Drop) Loss %.4f, Accuracy: (%.2f, %.2f, %.2f), Time %3.2f' %
+            logging.info('\tBatch %d: (Raw) Loss %.4f (%.4f, %.4f), Accuracy: (%.2f, %.2f, %.2f), (Crop) Loss %.4f (%.4f, %.4f), Accuracy: (%.2f, %.2f, %.2f), (Drop) Loss %.4f, Accuracy: (%.2f, %.2f, %.2f), Time %3.2f' %
                          (i + 1,
-                          epoch_loss[0] / batches, epoch_acc[0, 0] / batches, epoch_acc[0, 1] / batches, epoch_acc[0, 2] / batches,
-                          epoch_loss[1] / batches, epoch_acc[1, 0] / batches, epoch_acc[1, 1] / batches, epoch_acc[1, 2] / batches,
+                          epoch_loss[0] / batches, epoch_loss[3] / batches, epoch_loss[4] / batches, epoch_acc[0, 0] / batches, epoch_acc[0, 1] / batches, epoch_acc[0, 2] / batches,
+                          epoch_loss[1] / batches, epoch_loss[5] / batches, epoch_loss[6] / batches, epoch_acc[1, 0] / batches, epoch_acc[1, 1] / batches, epoch_acc[1, 2] / batches,
                           epoch_loss[2] / batches, epoch_acc[2, 0] / batches, epoch_acc[2, 1] / batches, epoch_acc[2, 2] / batches,
                           batch_end - batch_start))
 
