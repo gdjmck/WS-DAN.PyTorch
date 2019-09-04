@@ -170,7 +170,7 @@ def train(**kwargs):
 
     # metrics initialization
     batches = 0
-    epoch_loss = np.array([0, 0, 0], dtype='float')  # Loss on Raw/Crop/Drop Images
+    epoch_loss = np.array([0, 0, 0, 0, 0], dtype='float')  # Loss on Raw/Crop/Drop/Raw_metric/Crop_metric Images
     epoch_acc = np.array([[0, 0, 0],
                           [0, 0, 0],
                           [0, 0, 0]], dtype='float')  # Top-1/3/5 Accuracy for Raw/Crop/Drop Images
@@ -195,6 +195,7 @@ def train(**kwargs):
         metric_loss = loss_metric(metric)
         batch_loss = loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y]) + metric_loss[0] + metric_loss[1]
         epoch_loss[0] += batch_loss.item()
+        epoch_loss[3] += metric_loss.item()
 
         # backward
         optimizer.zero_grad()
@@ -230,6 +231,7 @@ def train(**kwargs):
         metric_loss = loss_metric(metric)
         batch_loss = loss(y_pred, y) + metric_loss[0] + metric_loss[1]
         epoch_loss[1] += batch_loss.item()
+        epoch_loss[4] += metric_loss.item()
 
         # backward
         optimizer.zero_grad()
