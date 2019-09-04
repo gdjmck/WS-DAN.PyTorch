@@ -80,7 +80,9 @@ class WSDAN(nn.Module):
         self.fc = nn.Linear(self.M * self.num_features * self.expansion, self.num_classes)
 
         # Metric Learning Layer
-        self.metric = nn.Linear(self.M * self.num_features * self.expansion, 512)
+        self.compact = nn.Sequential([nn.Conv1d(self.M, 1, kernel_size=1, bias=False),
+                                    nn.ReLU(), nn.BatchNorm1d(self.num_features * self.expansion)])
+        self.metric = nn.Linear(self.num_features * self.expansion, self.num_features)
 
         logging.info('WSDAN: using %s as feature extractor' % self.baseline)
 
@@ -91,13 +93,14 @@ class WSDAN(nn.Module):
         feature_maps = self.features(x)
         # print('\tfeature_maps:', feature_maps.shape)
         attention_maps = self.attentions(feature_maps)
-        feature_matrix = self.bap(feature_maps, attention_maps) # (B, D, 1)
+        feature_matrix = self.bap(feature_maps, attention_maps) # (B, #atts, #features)
 
         # Classification
         p = self.fc(feature_matrix.view(batch_size, -1))
 
         # Metric
-        metric = self.metric(feature_matrix.view(batch_size, -1))
+        metric = self.compact(feature_matrix)
+        metric = self.metric(metric.view(batch_size, -1))
         metric = nn.functional.normalize(metric)
 
         # Generate Attention Map
