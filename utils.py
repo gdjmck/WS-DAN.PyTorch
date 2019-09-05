@@ -35,13 +35,14 @@ class MetricLoss(torch.nn.Module):
     def forward(self, x):
         assert x.size(0) % self.batch_k == 0
         loss_homo, loss_heter = 0, 0
-        for i in range(int(x.size(0)/self.batch_k)):
-            for j in range(self.batch_k):
-                for k in range(j+1, self.batch_k):
-                    loss_homo += L_metric(x[i*self.batch_k+j, ...], x[i*self.batch_k+k, ...])
-
-                for k in range(x.size(0)):
-                    if i*self.batch_k <= k < (i+1)*self.batch_k:
-                        continue
-                    loss_heter += L_metric(x[i*self.batch_k+j, ...], x[k, ...], same_class=False)
-        return 2*loss_homo / (x.size(0)*(self.batch_k-1)), 2*loss_heter / (x.size(0)*(x.size(0)/self.batch_k-1))
+        batch_size = x.size(0)
+        for group_index in range(batch_size//self.batch_k):
+            for i in range(self.batch_k):
+                anchor = x[i+group_index*self.batch_k:1+i+group_index*self.batch_k, ...]
+                # loss from same label
+                for j in range(i+1, self.batch_k):
+                    loss_homo += L_metric(anchor, x[j+group_index*self.batch_k: 1+j+group_index*self.batch_k, ...])
+                # loss from different label
+                for j in range((1+group_index)*self.batch_k, batch_size):
+                    loss_heter += L_metric(anchor, x[j: j+1, ...], same_class=False)
+        return 2*loss_homo / (batch_size*(self.batch_k-1)), 2*loss_heter / (batch_size*(batch_size - self.batch_k))
