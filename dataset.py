@@ -89,7 +89,7 @@ class ImageFolderWithName(datasets.ImageFolder):
         if not self.return_fn:
             return img, label
         else:
-            return img, name2id[label], self.imgs[i]
+            return img, label, self.imgs[i]
 
 
 class CustomSampler(Sampler):

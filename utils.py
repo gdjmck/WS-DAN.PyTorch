@@ -43,5 +43,5 @@ class MetricLoss(torch.nn.Module):
                 for k in range(x.size(0)):
                     if i*self.batch_k <= k < (i+1)*self.batch_k:
                         continue
-                    loss_heter += L_metric(x[i*self.batch_k+j, ...], x[k, ...])
+                    loss_heter += L_metric(x[i*self.batch_k+j, ...], x[k, ...], same_class=False)
         return 2*loss_homo / (x.size(0)*(self.batch_k-1)), 2*loss_heter / (x.size(0)*(x.size(0)/self.batch_k-1))
