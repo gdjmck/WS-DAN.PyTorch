@@ -24,6 +24,8 @@ def main():
     parser = OptionParser()
     parser.add_option('-j', '--workers', dest='workers', default=16, type='int',
                       help='number of data loading workers (default: 16)')
+    parser.add_option('-d', '--dim', dest='metric_dim', default=512, type='int',
+                      help='dimension of metric')
     parser.add_option('-e', '--epochs', dest='epochs', default=80, type='int',
                       help='number of epochs (default: 80)')
     parser.add_option('-b', '--batch-size', dest='batch_size', default=16, type='int',
@@ -60,7 +62,7 @@ def main():
     start_epoch = 0
 
     feature_net = inception_v3(pretrained=True)
-    net = WSDAN(num_classes=num_classes, M=num_attentions, net=feature_net)
+    net = WSDAN(num_classes=num_classes, M=num_attentions, net=feature_net, metric_dim=options.metric_dim)
 
     # feature_center: size of (#classes, #attention_maps, #channel_features)
     feature_center = torch.zeros(num_classes, num_attentions, net.num_features * net.expansion).to(torch.device("cuda"))

@@ -46,10 +46,11 @@ class BAP(nn.Module):
 
 # WS-DAN: Weakly Supervised Data Augmentation Network for FGVC
 class WSDAN(nn.Module):
-    def __init__(self, num_classes, M=32, net=None):
+    def __init__(self, num_classes, M=32, metric_dim=512, net=None):
         super(WSDAN, self).__init__()
         self.num_classes = num_classes
         self.M = M
+        self.dim = metric_dim
 
         # Default Network
         self.baseline = 'inception'
@@ -80,10 +81,9 @@ class WSDAN(nn.Module):
         self.fc = nn.Linear(self.M * self.num_features * self.expansion, self.num_classes)
 
         # Metric Learning Layer
-        self.compact = nn.Sequential(nn.Conv1d(self.M, 1, kernel_size=1, bias=False),
-                                    nn.ReLU())
-        self.metric = nn.Sequential(nn.BatchNorm1d(self.num_features * self.expansion),
-                                    nn.Linear(self.num_features * self.expansion, self.num_features))
+        self.compact = nn.Conv1d(self.M, 1, kernel_size=1, bias=False)
+        self.metric = nn.Sequential(nn.BatchNorm1d(self.num_features * self.expansion), nn.ReLU(inplace=True),
+                                    nn.Linear(self.num_features * self.expansion, self.dim, bias=False))
 
         logging.info('WSDAN: using %s as feature extractor' % self.baseline)
 
