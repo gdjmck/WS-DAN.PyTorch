@@ -47,6 +47,8 @@ def main():
                       help='saving directory of .ckpt models (default: ./models)')
     parser.add_option('--init', '--initial-training', dest='initial_training', default=1, type='int',
                       help='train from 1-beginning or 0-resume training (default: 1)')
+    parser.add_option('--freeze', '--freeze-feature', dest='freeze', default=False, type=bool,
+                      help='whether freeze feature extraction layers or not')
 
     (options, args) = parser.parse_args()
 
@@ -113,7 +115,13 @@ def main():
                                     DataLoader(validate_dataset, batch_sampler=CustomSampler(validate_dataset, batch_size=options.batch_size, batch_k=options.batch_k, len=options.sampler_len),
                                                num_workers=options.workers, pin_memory=True)
 
-    optimizer = torch.optim.SGD(net.parameters(), lr=options.lr, momentum=0.9, weight_decay=0.00001)
+    if options.freeze:
+        train_params = []
+        train_params.extend(list(net.compact.parameters()))
+        train_params.extend(list(net.metric.parameter()))
+    else:
+        train_params = net.parameters()
+    optimizer = torch.optim.SGD(train_params, lr=options.lr, momentum=0.9, weight_decay=0.00001)
     loss = nn.CrossEntropyLoss()
     loss_metric = MetricLoss(options.batch_k)
 
@@ -172,7 +180,7 @@ def train(**kwargs):
 
     # metrics initialization
     batches = 0
-    epoch_loss = np.array([0, 0, 0, 0, 0, 0, 0], dtype='float')  # Loss on Raw/Crop/Drop/Raw_metric(homo+heter)/Crop_metric(homo+heter) Images
+    epoch_loss = np.array([0, 0, 0, 0, 0, 0, 0, 0], dtype='float')  # Loss on Raw/Crop/Drop/Raw_metric(homo+heter)/Crop_metric(homo+heter+metric_l2) Images
     epoch_acc = np.array([[0, 0, 0],
                           [0, 0, 0],
                           [0, 0, 0]], dtype='float')  # Top-1/3/5 Accuracy for Raw/Crop/Drop Images
@@ -228,14 +236,16 @@ def train(**kwargs):
             crop_images = torch.cat(crop_images, dim=0)
 
         # crop images forward
-        y_pred, _, _, metric = net(crop_images)
+        y_pred, _, _, metric_cropped = net(crop_images)
 
         # loss
-        metric_loss = loss_metric(metric)
-        batch_loss = loss(y_pred, y) + metric_loss[0] + metric_loss[1]
+        metric_loss = loss_metric(metric_cropped)
+        metric_l2 = l2_loss(metric_cropped, metric)
+        batch_loss = loss(y_pred, y) + metric_loss[0] + metric_loss[1] + metric_l2
         epoch_loss[1] += batch_loss.item()
         epoch_loss[5] += metric_loss[0].item()
         epoch_loss[6] += metric_loss[1].item()
+        epoch_loss[7] += metric_l2.item()
 
         # backward
         optimizer.zero_grad()
@@ -257,7 +267,7 @@ def train(**kwargs):
         y_pred, _, _, _ = net(drop_images)
 
         # loss
-        batch_loss = loss(y_pred, y)
+        batch_loss = 0.1*loss(y_pred, y)
         epoch_loss[2] += batch_loss.item()
 
         # backward
@@ -273,10 +283,10 @@ def train(**kwargs):
         batches += 1
         batch_end = time.time()
         if (i + 1) % verbose == 0:
-            logging.info('\tBatch %d: (Raw) Loss %.4f (%.4f, %.4f), Accuracy: (%.2f, %.2f, %.2f), (Crop) Loss %.4f (%.4f, %.4f), Accuracy: (%.2f, %.2f, %.2f), (Drop) Loss %.4f, Accuracy: (%.2f, %.2f, %.2f), Time %3.2f' %
+            logging.info('\tBatch %d: (Raw) Loss %.4f (%.4f, %.4f), Accuracy: (%.2f, %.2f, %.2f), (Crop) Loss %.4f (%.4f, %.4f, %.4f), Accuracy: (%.2f, %.2f, %.2f), (Drop) Loss %.4f, Accuracy: (%.2f, %.2f, %.2f), Time %3.2f' %
                          (i + 1,
                           epoch_loss[0] / batches, epoch_loss[3] / batches, epoch_loss[4] / batches, epoch_acc[0, 0] / batches, epoch_acc[0, 1] / batches, epoch_acc[0, 2] / batches,
-                          epoch_loss[1] / batches, epoch_loss[5] / batches, epoch_loss[6] / batches, epoch_acc[1, 0] / batches, epoch_acc[1, 1] / batches, epoch_acc[1, 2] / batches,
+                          epoch_loss[1] / batches, epoch_loss[5] / batches, epoch_loss[6] / batches, epoch_loss[7] / batches, epoch_acc[1, 0] / batches, epoch_acc[1, 1] / batches, epoch_acc[1, 2] / batches,
                           epoch_loss[2] / batches, epoch_acc[2, 0] / batches, epoch_acc[2, 1] / batches, epoch_acc[2, 2] / batches,
                           batch_end - batch_start))
 
