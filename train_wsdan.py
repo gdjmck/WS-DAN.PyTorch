@@ -20,6 +20,7 @@ from utils import accuracy, MetricLoss, plot_grad_flow_v2
 from models import *
 from dataset import *
 
+writer = None
 
 def main():
     parser = OptionParser()
@@ -57,6 +58,7 @@ def main():
 
     logging.basicConfig(format='%(asctime)s: %(levelname)s: [%(filename)s:%(lineno)d]: %(message)s', level=logging.INFO)
     warnings.filterwarnings("ignore")
+    global writer
     writer = SummaryWriter(options.tb)
 
     ##################################

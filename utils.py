@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2Ds
+from matplotlib.lines import Line2D
 
 
 def accuracy(output, target, topk=(1,)):
