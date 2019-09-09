@@ -64,6 +64,7 @@ def main():
     ##################################
     # Initialize model
     ##################################
+    global image_size
     image_size = 512
     num_classes = 98*2
     num_attentions = 32
@@ -182,7 +183,7 @@ def train(**kwargs):
     beta = 1e-4
     theta_c = 0.5
     theta_d = 0.5
-    crop_size = (256, 256)  # size of cropped images for 'See Better'
+    crop_size = (image_size, image_size)  # size of cropped images for 'See Better'
 
     # metrics initialization
     batches = 0

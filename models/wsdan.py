@@ -83,7 +83,7 @@ class WSDAN(nn.Module):
         # Metric Learning Layer
         self.compact = nn.Sequential(nn.Conv2d(self.num_features, self.num_features//2, kernel_size=1), nn.ReLU(inplace=True),
                                      nn.Conv2d(self.num_features//2, self.num_features//2, 3, stride=2, groups=self.num_features//2, padding=1), nn.ReLU(inplace=True),
-                                     nn.Conv2d(self.num_features//2, 1))
+                                     nn.Conv2d(self.num_features//2, 1, 1))
 
         self.metric = nn.Sequential(nn.BatchNorm2d(self.M), nn.Conv2d(self.M, 1, 1))
 
