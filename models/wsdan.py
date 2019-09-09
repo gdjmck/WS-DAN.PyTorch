@@ -81,9 +81,11 @@ class WSDAN(nn.Module):
         self.fc = nn.Linear(self.M * self.num_features * self.expansion, self.num_classes)
 
         # Metric Learning Layer
-        self.compact = nn.Conv1d(self.M, 1, kernel_size=1, bias=False)
-        self.metric = nn.Sequential(nn.BatchNorm1d(self.num_features * self.expansion), nn.ReLU(inplace=True),
-                                    nn.Linear(self.num_features * self.expansion, self.dim, bias=False))
+        self.compact = nn.Sequential(nn.Conv2d(self.num_features, self.num_features//2, kernel_size=1), nn.ReLU(inplace=True),
+                                     nn.Conv2d(self.num_features//2, self.num_features//2, 3, stride=2, groups=self.num_features//2, padding=1), nn.ReLU(inplace=True),
+                                     nn.Conv2d(self.num_features//2, 1))
+
+        self.metric = nn.Sequential(nn.BatchNorm2d(self.M), nn.Conv2d(self.M, 1, 1))
 
         logging.info('WSDAN: using %s as feature extractor' % self.baseline)
 
@@ -100,8 +102,14 @@ class WSDAN(nn.Module):
         p = self.fc(feature_matrix.view(batch_size, -1))
 
         # Metric
-        metric = self.compact(feature_matrix)
-        metric = self.metric(metric.view(batch_size, -1))
+        for i in range(self.M):
+            att_feat = self.compact(feature_maps * attention_maps[:, i:i+1, ...])
+            if i == 0:
+                compact = att_feat
+            else:
+                compact = torch.cat([compact, att_feat], dim=1)
+        metric = self.metric(compact)
+        metric = metric.view(batch_size, -1)
         metric = nn.functional.normalize(metric, dim=-1)
 
         # Generate Attention Map
@@ -154,6 +162,11 @@ if __name__ == '__main__':
     print(feature_matrix.shape)
     print(attention_map.shape)
     '''
+    params = []
+    params.extend(list(net.compact.parameters()))
+    params.extend(list(net.metric.parameters()))
+    print(params)
+    '''
     net.eval()
     input_test = torch.randn(2, 3, 512, 352)
     with torch.no_grad():
@@ -162,3 +175,4 @@ if __name__ == '__main__':
     print(p.shape)
     print(feature_matrix.shape)
     print(attention_map.shape)
+    '''
