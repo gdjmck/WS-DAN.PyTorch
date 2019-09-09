@@ -14,8 +14,9 @@ import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 from optparse import OptionParser
+from tensorboardX import SummaryWriter
 
-from utils import accuracy, MetricLoss
+from utils import accuracy, MetricLoss, plot_grad_flow_v2
 from models import *
 from dataset import *
 
@@ -49,11 +50,14 @@ def main():
                       help='train from 1-beginning or 0-resume training (default: 1)')
     parser.add_option('--freeze', '--freeze-feature', dest='freeze', default=False, action='store_true',
                       help='whether freeze feature extraction layers or not')
+    parser.add_option('--tb', '--tensorboard', dest='tb', default='./runs', 
+                      help='tensorboard saving folder')
 
     (options, args) = parser.parse_args()
 
     logging.basicConfig(format='%(asctime)s: %(levelname)s: [%(filename)s:%(lineno)d]: %(message)s', level=logging.INFO)
     warnings.filterwarnings("ignore")
+    writer = SummaryWriter(options.tb)
 
     ##################################
     # Initialize model
@@ -208,6 +212,10 @@ def train(**kwargs):
         epoch_loss[3] += metric_loss[0].item()
         epoch_loss[4] += metric_loss[1].item()
 
+        # vis gradient flow 
+        if (1+i) % 500 == 0:
+            writer.add_figure('Raw grad flow', plot_grad_flow_v2(net.module.named_parameters()), global_step=(i+1)//500)
+
         # backward
         optimizer.zero_grad()
         batch_loss.backward()
@@ -247,6 +255,9 @@ def train(**kwargs):
         epoch_loss[5] += metric_loss[0].item()
         epoch_loss[6] += metric_loss[1].item()
         epoch_loss[7] += metric_l2.item()
+
+        if (1+i) % 500 == 0:
+            writer.add_figure('Cropped grad flow', plot_grad_flow_v2(net.module.named_parameters()), global_step=(i+1)//500)
 
         # backward
         optimizer.zero_grad()
