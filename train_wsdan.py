@@ -47,7 +47,7 @@ def main():
                       help='saving directory of .ckpt models (default: ./models)')
     parser.add_option('--init', '--initial-training', dest='initial_training', default=1, type='int',
                       help='train from 1-beginning or 0-resume training (default: 1)')
-    parser.add_option('--freeze', '--freeze-feature', dest='freeze', default=False, type=bool,
+    parser.add_option('--freeze', '--freeze-feature', dest='freeze', default=False, action='store_true',
                       help='whether freeze feature extraction layers or not')
 
     (options, args) = parser.parse_args()
@@ -117,8 +117,8 @@ def main():
 
     if options.freeze:
         train_params = []
-        train_params.extend(list(net.compact.parameters()))
-        train_params.extend(list(net.metric.parameter()))
+        train_params.extend(list(net.module.compact.parameters()))
+        train_params.extend(list(net.module.metric.parameters()))
     else:
         train_params = net.parameters()
     optimizer = torch.optim.SGD(train_params, lr=options.lr, momentum=0.9, weight_decay=0.00001)
@@ -240,6 +240,7 @@ def train(**kwargs):
 
         # loss
         metric_loss = loss_metric(metric_cropped)
+        metric = metric.detach()
         metric_l2 = l2_loss(metric_cropped, metric)
         batch_loss = loss(y_pred, y) + metric_loss[0] + metric_loss[1] + metric_l2
         epoch_loss[1] += batch_loss.item()
