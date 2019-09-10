@@ -24,9 +24,9 @@ def accuracy(output, target, topk=(1,)):
 def L_metric(feat1, feat2, same_class=True):
     d = torch.sum((feat1 - feat2).pow(2).view((-1, feat1.size(-1))), 1)
     if same_class:
-        return d.sum()
+        return d.sum() / d.size(0)
     else:
-        return torch.clamp(1-d, min=0).sum()
+        return torch.clamp(1-d, min=0).sum() / d.size(0)
 
 
 class MetricLoss(torch.nn.Module):
@@ -37,6 +37,7 @@ class MetricLoss(torch.nn.Module):
     def forward(self, x):
         assert x.size(0) % self.batch_k == 0
         loss_homo, loss_heter = 0, 0
+        cnt_homo, cnt_heter = 0, 0
         batch_size = x.size(0)
         for group_index in range(batch_size//self.batch_k):
             for i in range(self.batch_k):
@@ -44,10 +45,12 @@ class MetricLoss(torch.nn.Module):
                 # loss from same label
                 for j in range(i+1, self.batch_k):
                     loss_homo += L_metric(anchor, x[j+group_index*self.batch_k: 1+j+group_index*self.batch_k, ...])
+                    cnt_homo += 1
                 # loss from different label
                 for j in range((1+group_index)*self.batch_k, batch_size):
                     loss_heter += L_metric(anchor, x[j: j+1, ...], same_class=False)
-        return 2*loss_homo / (batch_size*(self.batch_k-1)), 2*loss_heter / (batch_size*(batch_size - self.batch_k))
+                    cnt_heter += 1
+        return loss_homo / cnt_homo, loss_heter / cnt_heter
 
 
 def plot_grad_flow(named_parameters):
