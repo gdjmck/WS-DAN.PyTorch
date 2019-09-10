@@ -54,6 +54,7 @@ def main():
     parser.add_option('--tb', '--tensorboard', dest='tb', default='./runs', 
                       help='tensorboard saving folder')
 
+    global options
     (options, args) = parser.parse_args()
 
     logging.basicConfig(format='%(asctime)s: %(levelname)s: [%(filename)s:%(lineno)d]: %(message)s', level=logging.INFO)
@@ -210,7 +211,7 @@ def train(**kwargs):
 
         # loss
         metric_loss = loss_metric(metric)
-        batch_loss = loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y]) + metric_loss[0] + metric_loss[1]
+        batch_loss = metric_loss[0] + metric_loss[1] + (loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y])) if not options.freeze else 0
         epoch_loss[0] += batch_loss.item()
         epoch_loss[3] += metric_loss[0].item()
         epoch_loss[4] += metric_loss[1].item()
@@ -253,7 +254,7 @@ def train(**kwargs):
         metric_loss = loss_metric(metric_cropped)
         metric = metric.detach()
         metric_l2 = l2_loss(metric_cropped, metric)
-        batch_loss = loss(y_pred, y) + metric_loss[0] + metric_loss[1] + metric_l2
+        batch_loss = metric_loss[0] + metric_loss[1] + metric_l2 + loss(y_pred, y) if not options.freeze else 0
         epoch_loss[1] += batch_loss.item()
         epoch_loss[5] += metric_loss[0].item()
         epoch_loss[6] += metric_loss[1].item()
@@ -274,25 +275,26 @@ def train(**kwargs):
         ##################################
         # Attention Dropping
         ##################################
-        with torch.no_grad():
-            drop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3))) <= theta_d
-            drop_images = X * drop_mask.float()
+        if not options.freeze:
+            with torch.no_grad():
+                drop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3))) <= theta_d
+                drop_images = X * drop_mask.float()
 
-        # drop images forward
-        y_pred, _, _, _ = net(drop_images)
+            # drop images forward
+            y_pred, _, _, _ = net(drop_images)
 
-        # loss
-        batch_loss = 0.1*loss(y_pred, y)
-        epoch_loss[2] += batch_loss.item()
+            # loss
+            batch_loss = 0.1*loss(y_pred, y)
+            epoch_loss[2] += batch_loss.item()
 
-        # backward
-        optimizer.zero_grad()
-        batch_loss.backward()
-        optimizer.step()
+            # backward
+            optimizer.zero_grad()
+            batch_loss.backward()
+            optimizer.step()
 
-        # metrics: top-1, top-3, top-5 error
-        with torch.no_grad():
-            epoch_acc[2] += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
+            # metrics: top-1, top-3, top-5 error
+            with torch.no_grad():
+                epoch_acc[2] += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
 
         # end of this batch
         batches += 1
