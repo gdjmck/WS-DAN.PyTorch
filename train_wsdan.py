@@ -157,10 +157,11 @@ def main():
               save_freq=options.save_freq,
               save_dir=options.save_dir,
               verbose=options.verbose)
-        val_loss = validate(data_loader=validate_loader,
-                            net=net,
-                            loss=loss,
-                            verbose=options.verbose)
+        if not options.freeze:
+            val_loss = validate(data_loader=validate_loader,
+                                net=net,
+                                loss=loss,
+                                verbose=options.verbose)
         scheduler.step()
 
 
@@ -212,7 +213,7 @@ def train(**kwargs):
         # loss
         metric_loss = loss_metric(metric)
         batch_loss = metric_loss[0] + metric_loss[1]
-        if not options.freeze
+        if not options.freeze:
             batch_loss += loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y])
         epoch_loss[0] += batch_loss.item()
         epoch_loss[3] += metric_loss[0].item()
