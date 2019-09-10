@@ -211,7 +211,9 @@ def train(**kwargs):
 
         # loss
         metric_loss = loss_metric(metric)
-        batch_loss = metric_loss[0] + metric_loss[1] + (loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y])) if not options.freeze else 0
+        batch_loss = metric_loss[0] + metric_loss[1]
+        if not options.freeze
+            batch_loss += loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y])
         epoch_loss[0] += batch_loss.item()
         epoch_loss[3] += metric_loss[0].item()
         epoch_loss[4] += metric_loss[1].item()
@@ -254,7 +256,9 @@ def train(**kwargs):
         metric_loss = loss_metric(metric_cropped)
         metric = metric.detach()
         metric_l2 = l2_loss(metric_cropped, metric)
-        batch_loss = metric_loss[0] + metric_loss[1] + metric_l2 + loss(y_pred, y) if not options.freeze else 0
+        batch_loss = metric_loss[0] + metric_loss[1] + metric_l2 
+        if not options.freeze:
+            batch_loss += loss(y_pred, y)
         epoch_loss[1] += batch_loss.item()
         epoch_loss[5] += metric_loss[0].item()
         epoch_loss[6] += metric_loss[1].item()
