@@ -124,9 +124,12 @@ def main():
                                                num_workers=options.workers, pin_memory=True)
 
     if options.freeze:
-        train_params = []
-        train_params.extend(list(net.module.compact.parameters()))
-        train_params.extend(list(net.module.metric.parameters()))
+        train_params = [{'params': net.module.compact.parameters()},
+                        {'params': net.module.metric.parameters()},
+                        {'params': [p for p in net.module.parameters()\
+                                         if (p not in net.module.compact.parameters() and p not in net.module.metric.parameters())],
+                         'lr':options.lr/100}
+                        ]
     else:
         train_params = net.parameters()
     optimizer = torch.optim.SGD(train_params, lr=options.lr, momentum=0.9, weight_decay=0.00001)
