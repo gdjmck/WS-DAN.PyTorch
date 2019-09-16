@@ -22,6 +22,8 @@ parser.add_option('-v', '--verbose', dest='verbose', default=100, type='int',
 parser.add_option('--testset', type=str, help='directory of testset data')
 parser.add_option('--sd', '--save-dir', dest='save_dir', default='./models',
                     help='saving directory of .ckpt models (default: ./models)')
+parser.add_option('--cpu', dest='cpu', default=False,
+                    help='use cpu only if turned on')
 
 (options, args) = parser.parse_args()
 
@@ -44,7 +46,7 @@ def test():
     net = WSDAN(num_classes=num_classes, M=num_attentions, net=feature_net)
     
     # feature_center: size of (#classes, #attention_maps, #channel_features)
-    feature_center = torch.zeros(num_classes, num_attentions, net.num_features * net.expansion).to(torch.device("cuda"))
+    feature_center = torch.zeros(num_classes, num_attentions, net.num_features * net.expansion).to(torch.device("cuda") if not options.cpu else torch.device('cpu'))
 
     ckpt = options.ckpt
 
@@ -62,9 +64,10 @@ def test():
     ##################################
     # Use cuda
     ##################################
-    cudnn.benchmark = True
-    net.to(torch.device("cuda"))
-    net = nn.DataParallel(net)
+    if not options.cpu:
+        cudnn.benchmark = True
+        net.to(torch.device("cuda"))
+        net = nn.DataParallel(net)
 
     ##################################
     # Load dataset
@@ -76,7 +79,8 @@ def test():
     with torch.no_grad():
         for (x, y, fn) in iter(test_dataset):
             x = x.unsqueeze(0)
-            x = x.to(torch.device('cuda'))
+            if not options.cpu:
+                x = x.to(torch.device('cuda'))
 
             ##################################
             # Raw Image
