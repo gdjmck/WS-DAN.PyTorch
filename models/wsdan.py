@@ -81,11 +81,7 @@ class WSDAN(nn.Module):
         self.fc = nn.Linear(self.M * self.num_features * self.expansion, self.num_classes)
 
         # Metric Learning Layer
-        self.compact = nn.Sequential(nn.Conv2d(self.num_features, self.num_features//2, kernel_size=1), nn.ReLU(inplace=True),
-                                     nn.Conv2d(self.num_features//2, self.num_features//2, 3, stride=2, groups=self.num_features//2, padding=1), nn.ReLU(inplace=True),
-                                     nn.Conv2d(self.num_features//2, 1, 1))
-
-        self.metric = nn.Sequential(nn.BatchNorm2d(self.M), nn.Conv2d(self.M, 1, 1))
+        self.metric = nn.Linear(self.M * self.num_features * self.expansion, metric_dim)
 
         logging.info('WSDAN: using %s as feature extractor' % self.baseline)
 
@@ -102,15 +98,7 @@ class WSDAN(nn.Module):
         p = self.fc(feature_matrix.view(batch_size, -1))
 
         # Metric
-        for i in range(self.M):
-            att_feat = self.compact(feature_maps * attention_maps[:, i:i+1, ...])
-            if i == 0:
-                compact = att_feat
-            else:
-                compact = torch.cat([compact, att_feat], dim=1)
-        metric = self.metric(compact)
-        metric = metric.view(batch_size, -1)
-        metric = nn.functional.normalize(metric, dim=-1)
+        metric = self.metric(feature_matrix.view(batch_size, -1))
 
         # Generate Attention Map
         H, W = attention_maps.size(2), attention_maps.size(3)
