@@ -124,10 +124,8 @@ def main():
                                                num_workers=options.workers, pin_memory=True)
 
     if options.freeze:
-        metric_param_names = []
-        metric_param_names.extend(['compact.'+n for (n, p) in net.module.compact.named_parameters()])
-        metric_param_names.extend(['metric.'+n for (n, p) in net.module.metric.named_parameters()])
-        train_params = [{'params': net.module.compact.parameters()},
+        metric_param_names = ['metric.'+n for (n, p) in net.module.metric.named_parameters()]
+        train_params = [
                         {'params': net.module.metric.parameters()},
                         {'params': [p for (n, p) in net.module.named_parameters() if n not in metric_param_names],
                          'lr': options.lr/100}
