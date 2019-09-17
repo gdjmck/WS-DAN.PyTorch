@@ -211,12 +211,13 @@ def train(**kwargs):
         ##################################
         # Raw Image
         ##################################
-        y_pred, feature_matrix, attention_map = net(X)
+        y_pred, embeddings, attention_map = net(X)
 
         # loss
+        metric_loss = loss_metric(embeddings)
         batch_loss = metric_loss[0] + metric_loss[1]
         if not options.freeze:
-            batch_loss += loss(y_pred, y) + center_loss(feature_matrix, feature_center[y])
+            batch_loss += loss(y_pred, y) + center_loss(embeddings, feature_center[y])
         epoch_loss[0] += batch_loss.item()
         epoch_loss[3] += metric_loss[0].item()
         epoch_loss[4] += metric_loss[1].item()
@@ -231,7 +232,7 @@ def train(**kwargs):
         optimizer.step()
 
         # Update Feature Center
-        feature_center[y] += beta * (feature_matrix.detach() - feature_center[y])
+        feature_center[y] += beta * (embeddings.detach() - feature_center[y])
 
         # metrics: top-1, top-3, top-5 error
         with torch.no_grad():
@@ -255,12 +256,12 @@ def train(**kwargs):
             crop_images = torch.cat(crop_images, dim=0)
 
         # crop images forward
-        y_pred, _, _ = net(crop_images)
+        y_pred, embeddings_cropped, _ = net(crop_images)
 
         # loss
-        metric_loss = loss_metric(metric_cropped)
-        metric = metric.detach()
-        metric_l2 = l2_loss(metric_cropped, metric)
+        metric_loss = loss_metric(embeddings_cropped)
+        embeddings = embeddings.detach()
+        metric_l2 = l2_loss(embeddings_cropped, embeddings)
         batch_loss = metric_loss[0] + metric_loss[1] + metric_l2 
         if not options.freeze:
             batch_loss += loss(y_pred, y)
@@ -293,7 +294,7 @@ def train(**kwargs):
                 drop_images = X * drop_mask.float()
 
             # drop images forward
-            y_pred, _, _, _ = net(drop_images)
+            y_pred, _, _ = net(drop_images)
 
             # loss
             batch_loss = loss(y_pred, y)
