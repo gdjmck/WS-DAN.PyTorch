@@ -211,10 +211,9 @@ def train(**kwargs):
         ##################################
         # Raw Image
         ##################################
-        y_pred, feature_matrix, attention_map, metric = net(X)
+        y_pred, feature_matrix, attention_map = net(X)
 
         # loss
-        metric_loss = loss_metric(metric)
         batch_loss = metric_loss[0] + metric_loss[1]
         if not options.freeze:
             batch_loss += loss(y_pred, y) + center_loss(feature_matrix, feature_center[y])
@@ -256,7 +255,7 @@ def train(**kwargs):
             crop_images = torch.cat(crop_images, dim=0)
 
         # crop images forward
-        y_pred, _, _, metric_cropped = net(crop_images)
+        y_pred, _, _ = net(crop_images)
 
         # loss
         metric_loss = loss_metric(metric_cropped)

@@ -89,8 +89,9 @@ class WSDAN(nn.Module):
             self.features = inception_v3(pretrained=True).get_features()
 
         # Attention Maps
-        self.attentions = nn.Conv2d(self.num_features * self.expansion, self.M, kernel_size=1)
-        self.attentions.bias.data.fill_(0.)
+        att_conv = nn.Conv2d(self.num_features * self.expansion, self.M, kernel_size=1)
+        att_conv.bias.data.fill_(0.)
+        self.attentions = nn.Sequential(att_conv, nn.ReLU(inplace=True))
 
         # Bilinear Attention Pooling
         self.bap = BAP_v2()
@@ -121,10 +122,11 @@ class WSDAN(nn.Module):
             # Randomly choose one of attention maps Ak
             part_weights = attention_maps.mean(dim=(2, 3))
             part_weights = torch.sqrt(part_weights)
-            part_weights = part_weights / part_weights.sum(dim=1)
+            part_weights = part_weights / part_weights.sum(dim=1, keepdim=True)
+            part_weights = part_weights.cpu().detach().numpy()
             attention_map = torch.zeros(batch_size, 1, H, W).to(torch.device("cuda"))  # (B, 1, H, W)
             for i in range(batch_size):
-                indice = np.random.choice(range(self.M), 1, p=part_weights[i, :])
+                indice = np.random.choice(range(self.M), p=part_weights[i, :])
                 attention_map[i] = attention_maps[i, indice:indice + 1, ...]
         else:
             # Object Localization Am = mean(sum(Ak))
@@ -137,7 +139,7 @@ class WSDAN(nn.Module):
         attention_map = (attention_map - attention_map_min) / (attention_map_max - attention_map_min)  # (B, H * W)
         attention_map = attention_map.view(batch_size, 1, H, W)  # (B, 1, H, W)
 
-        return p, feature_matrix, attention_map, metric
+        return p, embeddings, attention_map
 
     def load_state_dict(self, state_dict, strict=True):
         model_dict = self.state_dict()
