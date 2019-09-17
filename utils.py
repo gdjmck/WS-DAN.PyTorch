@@ -29,6 +29,16 @@ def L_metric(feat1, feat2, same_class=True):
         return torch.clamp(1-d, min=0).sum() / d.size(0)
 
 
+def center_loss(features, centers):
+    '''
+        both features and centers are of shape (N, dim)
+    '''
+    batch_size = features.size(0)
+    centers = torch.nn.functional.normalize(centers)
+    distance = (features - centers) ** 2
+    return distance.sum() / batch_size
+
+
 class MetricLoss(torch.nn.Module):
     def __init__(self, batch_k):
         super().__init__()

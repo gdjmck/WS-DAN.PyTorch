@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from optparse import OptionParser
 from tensorboardX import SummaryWriter
 
-from utils import accuracy, MetricLoss, plot_grad_flow_v2
+from utils import accuracy, MetricLoss, plot_grad_flow_v2, center_loss
 from models import *
 from dataset import *
 
@@ -185,7 +185,7 @@ def train(**kwargs):
     l2_loss = nn.MSELoss()
 
     # Default Parameters
-    beta = 1e-4
+    beta = 0.05
     theta_c = 0.5
     theta_d = 0.5
     crop_size = (256, 256)  # size of cropped images for 'See Better'
@@ -217,7 +217,7 @@ def train(**kwargs):
         metric_loss = loss_metric(metric)
         batch_loss = metric_loss[0] + metric_loss[1]
         if not options.freeze:
-            batch_loss += loss(y_pred, y) + l2_loss(feature_matrix, feature_center[y])
+            batch_loss += loss(y_pred, y) + center_loss(feature_matrix, feature_center[y])
         epoch_loss[0] += batch_loss.item()
         epoch_loss[3] += metric_loss[0].item()
         epoch_loss[4] += metric_loss[1].item()
