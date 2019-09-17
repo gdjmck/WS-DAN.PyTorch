@@ -44,6 +44,23 @@ class BAP(nn.Module):
         return feature_matrix
 
 
+class BAP_v2(nn.Module):
+    def forward(self, features, attentions):
+        B, F, H, W = features.size()
+        M = attentions.size(1)
+
+        features = features.view(B, F, -1).transpose(1, 2)
+        attentions = attentions.view(B, M, -1)
+
+        I = torch.matmul(attentions, features) # (B, M, F)
+        I /= H*W
+        I = torch.sign(I) * torch.sqrt(torch.abs(I))
+        I = I.view(B, -1) # (B, M*F)
+        I = nn.functional.normalize(I)
+        
+        return I
+
+
 # WS-DAN: Weakly Supervised Data Augmentation Network for FGVC
 class WSDAN(nn.Module):
     def __init__(self, num_classes, M=32, metric_dim=512, net=None):
@@ -72,10 +89,11 @@ class WSDAN(nn.Module):
             self.features = inception_v3(pretrained=True).get_features()
 
         # Attention Maps
-        self.attentions = nn.Conv2d(self.num_features * self.expansion, self.M, kernel_size=1, bias=False)
+        self.attentions = nn.Conv2d(self.num_features * self.expansion, self.M, kernel_size=1)
+        self.attentions.bias.data.fill_(0.)
 
         # Bilinear Attention Pooling
-        self.bap = BAP(pool='GAP')
+        self.bap = BAP_v2()
 
         # Classification Layer
         self.fc = nn.Linear(self.M * self.num_features * self.expansion, self.num_classes)
@@ -92,22 +110,22 @@ class WSDAN(nn.Module):
         feature_maps = self.features(x)
         # print('\tfeature_maps:', feature_maps.shape)
         attention_maps = self.attentions(feature_maps)
-        feature_matrix = self.bap(feature_maps, attention_maps) # (B, #atts, #features)
+        embeddings = self.bap(feature_maps, attention_maps) # (B, #atts * #features) already normalized
 
         # Classification
-        p = self.fc(feature_matrix.view(batch_size, -1))
-
-        # Metric
-        metric = self.metric(feature_matrix.view(batch_size, -1))
+        p = self.fc(100.0*embeddings) # weird that original implementation in tensorflow multiplies a constant 100
 
         # Generate Attention Map
         H, W = attention_maps.size(2), attention_maps.size(3)
         if self.training:
             # Randomly choose one of attention maps Ak
-            k_indices = np.random.randint(self.M, size=batch_size)
+            part_weights = attention_maps.mean(dim=(2, 3))
+            part_weights = torch.sqrt(part_weights)
+            part_weights = part_weights / part_weights.sum(dim=1)
             attention_map = torch.zeros(batch_size, 1, H, W).to(torch.device("cuda"))  # (B, 1, H, W)
             for i in range(batch_size):
-                attention_map[i] = attention_maps[i, k_indices[i]:k_indices[i] + 1, ...]
+                indice = np.random.choice(range(self.M), 1, p=part_weights[i, :])
+                attention_map[i] = attention_maps[i, indice:indice + 1, ...]
         else:
             # Object Localization Am = mean(sum(Ak))
             attention_map = torch.mean(attention_maps, dim=1, keepdim=True)  # (B, 1, H, W)

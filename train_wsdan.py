@@ -242,15 +242,17 @@ def train(**kwargs):
         # Attention Cropping
         ##################################
         with torch.no_grad():
-            crop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3))) > theta_c
             crop_images = []
-            for batch_index in range(crop_mask.size(0)):
-                nonzero_indices = torch.nonzero(crop_mask[batch_index, 0, ...])
-                height_min = nonzero_indices[:, 0].min()
-                height_max = nonzero_indices[:, 0].max()
-                width_min = nonzero_indices[:, 1].min()
-                width_max = nonzero_indices[:, 1].max()
-                crop_images.append(F.upsample_bilinear(X[batch_index:batch_index + 1, :, height_min:height_max, width_min:width_max], size=crop_size))
+            for batch_index in range(attention_map.size(0)):
+                theta = torch.max(attention_map[batch_index]) * np.random.uniform(0.4, 0.6)
+                crop_mask = attention_map[batch_index] > theta
+                nonzero_indices = torch.nonzero(crop_mask[0, ...])
+                height_min = nonzero_indices[:, 0].min() / attention_map.size(2) - 0.1
+                height_max = nonzero_indices[:, 0].max() / attention_map.size(2) + 0.1
+                width_min = nonzero_indices[:, 1].min() / attention_map.size(3) - 0.1
+                width_max = nonzero_indices[:, 1].max() / attention_map.size(3) + 0.1
+                crop_images.append(F.upsample_bilinear(X[batch_index:batch_index + 1, :, int(height_min*X.size(2)):int(height_max*X.size(2)), 
+                                                            int(width_min*X.size(3)):int(width_max*X.size(3))], size=crop_size))
             crop_images = torch.cat(crop_images, dim=0)
 
         # crop images forward
@@ -285,14 +287,17 @@ def train(**kwargs):
         ##################################
         if not options.freeze:
             with torch.no_grad():
-                drop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3))) <= theta_d
+                drop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3)))
+                for batch_index in range(attention_map.size(0)):
+                    theta = torch.max(attention_map[batch_index]) * np.random.uniform(0.4, 0.6)
+                    drop_mask[batch_index] = drop_mask[batch_index] < theta
                 drop_images = X * drop_mask.float()
 
             # drop images forward
             y_pred, _, _, _ = net(drop_images)
 
             # loss
-            batch_loss = 0.1*loss(y_pred, y)
+            batch_loss = loss(y_pred, y)
             epoch_loss[2] += batch_loss.item()
 
             # backward
@@ -349,6 +354,7 @@ def validate(**kwargs):
     net = kwargs['net']
     loss = kwargs['loss']
     verbose = kwargs['verbose']
+    purpose = kwargs['purpose']
 
     # Default Parameters
     theta_c = 0.5
