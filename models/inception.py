@@ -144,6 +144,9 @@ class Inception3(nn.Module):
             self.Mixed_6d,
             self.Mixed_6e,
         )
+    
+    def get_7a(self):
+        return self.Mixed_7a
 
 
 class InceptionA(nn.Module):

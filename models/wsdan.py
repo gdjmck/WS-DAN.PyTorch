@@ -51,10 +51,12 @@ class BAP_v2(nn.Module):
 
         features = features.view(B, F, -1).transpose(1, 2)
         attentions = attentions.view(B, M, -1)
+        #print(features.size(), attentions.size())
 
         I = torch.matmul(attentions, features) # (B, M, F)
+        #print(I.size())
         I /= H*W
-        I = torch.sign(I) * torch.sqrt(torch.abs(I))
+        I = torch.mul(torch.sign(I), torch.sqrt(torch.abs(I)+1e-12))
         I = I.view(B, -1) # (B, M*F)
         I = nn.functional.normalize(I)
         
@@ -85,22 +87,22 @@ class WSDAN(nn.Module):
             elif isinstance(net, VGG):
                 self.baseline = 'vgg'
                 self.num_features = 512
+            att_prep = nn.Dropout(0., inplace=True)
         else:
-            self.features = inception_v3(pretrained=True).get_features()
+            net_base = inception_v3(pretrained=True)
+            self.features = net_base.get_features()
+            att_prep = net_base.get_7a()
 
         # Attention Maps
         att_conv = nn.Conv2d(self.num_features * self.expansion, self.M, kernel_size=1)
         att_conv.bias.data.fill_(0.)
-        self.attentions = nn.Sequential(att_conv, nn.ReLU(inplace=True))
+        self.attentions = nn.Sequential(att_prep, att_conv, nn.ReLU(inplace=True))
 
         # Bilinear Attention Pooling
         self.bap = BAP_v2()
 
         # Classification Layer
         self.fc = nn.Linear(self.M * self.num_features * self.expansion, self.num_classes)
-
-        # Metric Learning Layer
-        self.metric = nn.Linear(self.M * self.num_features * self.expansion, metric_dim)
 
         logging.info('WSDAN: using %s as feature extractor' % self.baseline)
 
@@ -109,35 +111,37 @@ class WSDAN(nn.Module):
 
         # Feature Maps, Attention Maps and Feature Matrix
         feature_maps = self.features(x)
-        # print('\tfeature_maps:', feature_maps.shape)
         attention_maps = self.attentions(feature_maps)
+        #print('attention_maps:', attention_maps.size())
         embeddings = self.bap(feature_maps, attention_maps) # (B, #atts * #features) already normalized
 
         # Classification
-        p = self.fc(100.0*embeddings) # weird that original implementation in tensorflow multiplies a constant 100
+        p = self.fc(embeddings) # weird that original implementation in tensorflow multiplies a constant 100
 
         # Generate Attention Map
         H, W = attention_maps.size(2), attention_maps.size(3)
         if self.training:
             # Randomly choose one of attention maps Ak
-            part_weights = attention_maps.mean(dim=(2, 3))
-            part_weights = torch.sqrt(part_weights)
-            part_weights = part_weights / part_weights.sum(dim=1, keepdim=True)
+            part_weights = attention_maps.mean(dim=(2, 3)) # (B, atts)
+            part_weights = torch.sqrt(part_weights + 1e-12)
+            part_weights = torch.div(part_weights, part_weights.sum(dim=1, keepdim=True))
             part_weights = part_weights.cpu().detach().numpy()
             attention_map = torch.zeros(batch_size, 1, H, W).to(torch.device("cuda"))  # (B, 1, H, W)
             for i in range(batch_size):
+                #print('prob[%d]:'%i, part_weights[i, :])
                 indice = np.random.choice(range(self.M), p=part_weights[i, :])
                 attention_map[i] = attention_maps[i, indice:indice + 1, ...]
         else:
             # Object Localization Am = mean(sum(Ak))
             attention_map = torch.mean(attention_maps, dim=1, keepdim=True)  # (B, 1, H, W)
-
+        '''
         # Normalize Attention Map
         attention_map = attention_map.view(batch_size, -1)  # (B, H * W)
         attention_map_max, _ = attention_map.max(dim=1, keepdim=True)  # (B, 1)
         attention_map_min, _ = attention_map.min(dim=1, keepdim=True)  # (B, 1)
         attention_map = (attention_map - attention_map_min) / (attention_map_max - attention_map_min)  # (B, H * W)
         attention_map = attention_map.view(batch_size, 1, H, W)  # (B, 1, H, W)
+        '''
 
         return p, embeddings, attention_map
 

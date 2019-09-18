@@ -33,6 +33,7 @@ def center_loss(features, centers):
     '''
         both features and centers are of shape (N, dim)
     '''
+    #print('features:', features.size(), '\ncenters:', centers.size())
     batch_size = features.size(0)
     centers = torch.nn.functional.normalize(centers)
     distance = (features - centers) ** 2

@@ -75,7 +75,7 @@ def main():
     net = WSDAN(num_classes=num_classes, M=num_attentions, net=feature_net, metric_dim=options.metric_dim)
 
     # feature_center: size of (#classes, #attention_maps, #channel_features)
-    feature_center = torch.zeros(num_classes, num_attentions, net.num_features * net.expansion).to(torch.device("cuda"))
+    feature_center = torch.zeros(num_classes, num_attentions * net.num_features * net.expansion).to(torch.device("cuda"))
 
     if options.ckpt:
         ckpt = options.ckpt
@@ -214,17 +214,18 @@ def train(**kwargs):
         y_pred, embeddings, attention_map = net(X)
 
         # loss
-        metric_loss = loss_metric(embeddings)
-        batch_loss = metric_loss[0] + metric_loss[1]
-        if not options.freeze:
-            batch_loss += loss(y_pred, y) + center_loss(embeddings, feature_center[y])
+        #metric_loss = loss_metric(embeddings)
+        #batch_loss = metric_loss[0] + metric_loss[1]
+        #if not options.freeze:
+        batch_loss = loss(y_pred, y) + center_loss(embeddings, feature_center[y])
         epoch_loss[0] += batch_loss.item()
-        epoch_loss[3] += metric_loss[0].item()
-        epoch_loss[4] += metric_loss[1].item()
+        #epoch_loss[3] += metric_loss[0].item()
+        #epoch_loss[4] += metric_loss[1].item()
 
         # vis gradient flow 
         if (1+i) % 500 == 0:
             writer.add_figure('Raw grad flow', plot_grad_flow_v2(net.module.named_parameters()), global_step=(i+1)//500)
+            
 
         # backward
         optimizer.zero_grad()
@@ -247,28 +248,30 @@ def train(**kwargs):
                 theta = torch.max(attention_map[batch_index]) * np.random.uniform(0.4, 0.6)
                 crop_mask = attention_map[batch_index] > theta
                 nonzero_indices = torch.nonzero(crop_mask[0, ...])
-                height_min = nonzero_indices[:, 0].min() / attention_map.size(2) - 0.1
-                height_max = nonzero_indices[:, 0].max() / attention_map.size(2) + 0.1
-                width_min = nonzero_indices[:, 1].min() / attention_map.size(3) - 0.1
-                width_max = nonzero_indices[:, 1].max() / attention_map.size(3) + 0.1
-                crop_images.append(F.upsample_bilinear(X[batch_index:batch_index + 1, :, int(height_min*X.size(2)):int(height_max*X.size(2)), 
-                                                            int(width_min*X.size(3)):int(width_max*X.size(3))], size=crop_size))
+                height_min = torch.clamp(nonzero_indices[:, 0].min().float() / attention_map.size(2) - 0.1, min=0) * X.size(2)
+                height_max = torch.clamp(nonzero_indices[:, 0].max().float() / attention_map.size(2) + 0.1, max=1) * X.size(2)
+                width_min = torch.clamp(nonzero_indices[:, 1].min().float() / attention_map.size(3) - 0.1, min=0) * X.size(3)
+                width_max = torch.clamp(nonzero_indices[:, 1].max().float() / attention_map.size(3) + 0.1, max=1) * X.size(3)
+                crop_images.append(F.upsample_bilinear(X[batch_index:batch_index + 1, :, int(height_min.item()):int(height_max.item()), 
+                                                            int(width_min.item()):int(width_max.item())], size=crop_size))
             crop_images = torch.cat(crop_images, dim=0)
+            #print('raw image:', X[0, 0, ...])
+            #print('crop_images:', crop_images.size(), '\n', crop_images[0, 0, ...])
 
         # crop images forward
         y_pred, embeddings_cropped, _ = net(crop_images)
 
         # loss
-        metric_loss = loss_metric(embeddings_cropped)
-        embeddings = embeddings.detach()
-        metric_l2 = l2_loss(embeddings_cropped, embeddings)
-        batch_loss = metric_loss[0] + metric_loss[1] + metric_l2 
-        if not options.freeze:
-            batch_loss += loss(y_pred, y)
+        #metric_loss = loss_metric(embeddings_cropped)
+        #embeddings = embeddings.detach()
+        #metric_l2 = l2_loss(embeddings_cropped, embeddings)
+        #batch_loss = metric_loss[0] + metric_loss[1] + metric_l2 
+        #if not options.freeze:
+        batch_loss = loss(y_pred, y)
         epoch_loss[1] += batch_loss.item()
-        epoch_loss[5] += metric_loss[0].item()
-        epoch_loss[6] += metric_loss[1].item()
-        epoch_loss[7] += metric_l2.item()
+        #epoch_loss[5] += metric_loss[0].item()
+        #epoch_loss[6] += metric_loss[1].item()
+        #epoch_loss[7] += metric_l2.item()
 
         if (1+i) % 500 == 0:
             writer.add_figure('Cropped grad flow', plot_grad_flow_v2(net.module.named_parameters()), global_step=(i+1)//500)
