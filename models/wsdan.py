@@ -49,14 +49,14 @@ class BAP_v2(nn.Module):
         B, F, H, W = features.size()
         M = attentions.size(1)
 
-        features = features.view(B, F, -1).transpose(1, 2)
-        attentions = attentions.view(B, M, -1)
+        #features = features.view(B, F, -1).transpose(1, 2)
+        #attentions = attentions.view(B, M, -1)
         #print(features.size(), attentions.size())
 
-        I = torch.matmul(attentions, features) # (B, M, F)
+        I = torch.einsum('bmhw, bfhw -> bmf', attentions, features) # (B, M, F)
         #print(I.size())
         I /= H*W
-        I = torch.mul(torch.sign(I), torch.sqrt(torch.abs(I)+1e-12))
+        #I = torch.mul(torch.sign(I), torch.sqrt(torch.abs(I)+1e-12))
         I = I.view(B, -1) # (B, M*F)
         I = nn.functional.normalize(I)
         
@@ -87,16 +87,16 @@ class WSDAN(nn.Module):
             elif isinstance(net, VGG):
                 self.baseline = 'vgg'
                 self.num_features = 512
-            att_prep = nn.Dropout(0., inplace=True)
         else:
-            net_base = inception_v3(pretrained=True)
-            self.features = net_base.get_features()
-            att_prep = net_base.get_7a()
+            self.features = inception_v3(pretrained=True).get_features()
 
         # Attention Maps
+        '''
         att_conv = nn.Conv2d(self.num_features * self.expansion, self.M, kernel_size=1)
         att_conv.bias.data.fill_(0.)
-        self.attentions = nn.Sequential(att_prep, att_conv, nn.ReLU(inplace=True))
+        self.attentions = nn.Sequential(att_conv, nn.BatchNorm2d(self.M), nn.ReLU(inplace=True))
+        '''
+        self.attentions = nn.Sequential(nn.Conv2d(self.num_features * self.expansion, self.M, kernel_size=1, bias=False), nn.BatchNorm2d(self.M, eps=0.001), nn.ReLU(inplace=True))
 
         # Bilinear Attention Pooling
         self.bap = BAP_v2()
@@ -111,18 +111,22 @@ class WSDAN(nn.Module):
 
         # Feature Maps, Attention Maps and Feature Matrix
         feature_maps = self.features(x)
+        #print('feature_maps:', feature_maps.size())
         attention_maps = self.attentions(feature_maps)
         #print('attention_maps:', attention_maps.size())
         embeddings = self.bap(feature_maps, attention_maps) # (B, #atts * #features) already normalized
+        #print('Mean embeddings:', embeddings.mean(1)) # avg of 0.002 for almost every sample in a batch
 
         # Classification
         p = self.fc(embeddings) # weird that original implementation in tensorflow multiplies a constant 100
 
         # Generate Attention Map
+        #print('attention_maps:', attention_maps.size())
         H, W = attention_maps.size(2), attention_maps.size(3)
         if self.training:
             # Randomly choose one of attention maps Ak
             part_weights = attention_maps.mean(dim=(2, 3)) # (B, atts)
+            #print(part_weights.size())
             part_weights = torch.sqrt(part_weights + 1e-12)
             part_weights = torch.div(part_weights, part_weights.sum(dim=1, keepdim=True))
             part_weights = part_weights.cpu().detach().numpy()
