@@ -217,13 +217,14 @@ def train(**kwargs):
         #print((y_pred[0, ...] - y_pred[1, ...]).abs().sum(), (y_pred[0, ...] - y_pred[2, ...]).abs().sum())
 
         # loss
-        #metric_loss = loss_metric(embeddings)
-        #batch_loss = metric_loss[0] + metric_loss[1]
+        metric_loss = loss_metric(embeddings)
         #if not options.freeze:
-        batch_loss = loss(y_pred, y) + center_loss(embeddings, feature_center[y])
-        epoch_loss[0] += batch_loss.item()
-        #epoch_loss[3] += metric_loss[0].item()
-        #epoch_loss[4] += metric_loss[1].item()
+        loss_classify = loss(y_pred, y)
+        loss_center = center_loss(embeddings, feature_center[y])
+        batch_loss = loss_classify + loss_center + metric_loss[0] + metric_loss[1]
+        epoch_loss[0] += loss_classify.item()
+        epoch_loss[3] += metric_loss[0].item()
+        epoch_loss[4] += metric_loss[1].item()
             
 
         # backward
@@ -266,15 +267,16 @@ def train(**kwargs):
             y_pred, embeddings_cropped, _ = net(crop_images)
 
             # loss
-            #metric_loss = loss_metric(embeddings_cropped)
+            metric_loss = loss_metric(embeddings_cropped)
+            loss_classify = loss(y_pred, y)
             #embeddings = embeddings.detach()
             #metric_l2 = l2_loss(embeddings_cropped, embeddings)
             #batch_loss = metric_loss[0] + metric_loss[1] + metric_l2 
             #if not options.freeze:
-            batch_loss = loss(y_pred, y)
-            epoch_loss[1] += batch_loss.item()
-            #epoch_loss[5] += metric_loss[0].item()
-            #epoch_loss[6] += metric_loss[1].item()
+            batch_loss = loss_classify + metric_loss[0] + metric_loss[1]
+            epoch_loss[1] += loss_classify.item()
+            epoch_loss[5] += metric_loss[0].item()
+            epoch_loss[6] += metric_loss[1].item()
             #epoch_loss[7] += metric_l2.item()
 
 
@@ -282,8 +284,8 @@ def train(**kwargs):
             optimizer.zero_grad()
             batch_loss.backward()
             optimizer.step()
-            if (1+i) % 50 == 0:
-                writer.add_figure('Cropped grad flow', plot_grad_flow_v2(net.module.named_parameters()), global_step=(i+1)//50)
+            if (1+i) % 500 == 0:
+                writer.add_figure('Cropped grad flow', plot_grad_flow_v2(net.module.named_parameters()), global_step=(i+1)//500)
 
             # metrics: top-1, top-3, top-5 error
             with torch.no_grad():
