@@ -55,7 +55,8 @@ class MetricLoss(torch.nn.Module):
             for i in range(self.batch_k):
                 anchor = x[i+group_index*self.batch_k:1+i+group_index*self.batch_k, ...]
                 # loss from same label
-                for j in range(i+1, self.batch_k):
+                for j in range(self.batch_k):
+                    if i == j: continue
                     loss_homo += L_metric(anchor, x[j+group_index*self.batch_k: 1+j+group_index*self.batch_k, ...])
                     cnt_homo += 1
                 # loss from different label
@@ -98,9 +99,9 @@ def plot_grad_flow_v2(named_parameters):
             if p.grad is None:
                 #print('no grad:', n)
                 continue
-            n = n.replace('.weight', '').replace('inception', '').replace('branch', 'B').replace('conv', 'C').replace('pool', 'P').replace('attentions', 'A').replace('_', '.')
-            n = re.sub('\d', '', n)
-            n.replace('..', '.')
+            n = n.replace('.weight', '').replace('inception', '').replace('branch', 'B').replace('conv', 'C').replace('pool', 'P').replace('attentions', 'A').replace('_', '.').replace('features.', '')
+            #n = re.sub('\d', '', n)
+            #n.replace('..', '.')
             layers.append(n)
             ave_grads.append(p.grad.abs().mean())
             max_grads.append(p.grad.abs().max())

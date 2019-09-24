@@ -60,7 +60,7 @@ class BAP_v2(nn.Module):
         I = I.view(B, -1) # (B, M*F)
         I = nn.functional.normalize(I)
         
-        return I
+        return I.view(B, M, F)
 
 
 # WS-DAN: Weakly Supervised Data Augmentation Network for FGVC
@@ -96,13 +96,17 @@ class WSDAN(nn.Module):
         att_conv.bias.data.fill_(0.)
         self.attentions = nn.Sequential(att_conv, nn.BatchNorm2d(self.M), nn.ReLU(inplace=True))
         '''
-        self.attentions = nn.Sequential(nn.Conv2d(self.num_features * self.expansion, self.M, kernel_size=1, bias=False), nn.BatchNorm2d(self.M, eps=0.001), nn.ReLU(inplace=True))
+        self.attentions = nn.Sequential(nn.Conv2d(self.num_features * self.expansion, self.M, kernel_size=1, bias=False), nn.ReLU(inplace=True))
 
         # Bilinear Attention Pooling
         self.bap = BAP_v2()
+        
+        # Conv1d squeeze all attentions
+        self.squeeze = nn.Conv2d(self.M, 1, 1)
+        self.norm = nn.Sequential(nn.BatchNorm1d(self.num_features * self.expansion), nn.ReLU(inplace=True))
 
         # Classification Layer
-        self.fc = nn.Linear(self.M * self.num_features * self.expansion, self.num_classes)
+        self.fc = nn.Sequential(nn.BatchNorm1d(self.num_features*self.expansion), nn.Linear(self.num_features * self.expansion, self.num_classes))
 
         logging.info('WSDAN: using %s as feature extractor' % self.baseline)
 
@@ -111,11 +115,14 @@ class WSDAN(nn.Module):
 
         # Feature Maps, Attention Maps and Feature Matrix
         feature_maps = self.features(x)
-        #print('feature_maps:', feature_maps.size())
+        #print('feature_maps:', feature_maps.size(), 'std:', feature_maps.view(batch_size, 768, -1).std(dim=2).mean())
         attention_maps = self.attentions(feature_maps)
-        #print('attention_maps:', attention_maps.size())
-        embeddings = self.bap(feature_maps, attention_maps) # (B, #atts * #features) already normalized
-        #print('Mean embeddings:', embeddings.mean(1)) # avg of 0.002 for almost every sample in a batch
+        #print('attention_maps:', attention_maps.size(), 'zero-rate:', (attention_maps==0).sum().float() / attention_maps.numel(), '\tstd:', attention_maps.view(batch_size, self.M, -1).std(dim=2).mean())
+        embeddings = self.bap(feature_maps, attention_maps) # (B, M, F)
+        #print('BAP zero-rate:', (embeddings==0).sum().float() / embeddings.numel(), '\n', embeddings[0, ...])
+        embeddings = self.squeeze(embeddings.unsqueeze(-1)).view(-1, self.num_features) # (B, F)
+        embeddings = self.norm(embeddings)
+        #print('Embedding zero-rate:', (embeddings==0).sum().float() / embeddings.numel(), '\n', embeddings[0, :])
 
         # Classification
         p = self.fc(embeddings) # weird that original implementation in tensorflow multiplies a constant 100
