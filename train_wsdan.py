@@ -160,13 +160,11 @@ def main():
               save_freq=options.save_freq,
               save_dir=options.save_dir,
               verbose=options.verbose)
-        '''
         if not options.freeze:
             val_loss = validate(data_loader=validate_loader,
                                 net=net,
                                 loss=loss,
-                                verbose=options.verbose)
-        '''                      
+                                verbose=options.verbose)                  
         scheduler.step()
 
 def train(**kwargs):
@@ -385,7 +383,7 @@ def validate(**kwargs):
 
     # metrics initialization
     batches = 0
-    epoch_loss = 0
+    epoch_loss = [0, 0, 0]
     epoch_acc = np.array([0, 0, 0], dtype='float') # top - 1, 3, 5
 
     # begin validation
@@ -402,7 +400,7 @@ def validate(**kwargs):
             ##################################
             # Raw Image
             ##################################
-            y_pred_raw, feature_matrix, attention_map = net(X)
+            y_pred_raw, embeddings, attention_map = net(X)
 
             ##################################
             # Object Localization and Refinement
@@ -428,7 +426,10 @@ def validate(**kwargs):
 
             # loss
             batch_loss = loss(y_pred, y)
-            epoch_loss += batch_loss.item()
+            metric_loss = loss_metric(embeddings)
+            epoch_loss[0] += batch_loss.item()
+            epoch_loss[1] += metric_loss[0].item()
+            epoch_loss[2] += metric_loss[1].item()
 
             # metrics: top-1, top-3, top-5 error
             epoch_acc += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
@@ -437,8 +438,9 @@ def validate(**kwargs):
             batches += 1
             batch_end = time.time()
             if (i + 1) % verbose == 0:
-                logging.info('\tBatch %d: Loss %.5f, Accuracy: Top-1 %.2f, Top-3 %.2f, Top-5 %.2f, Time %3.2f' %
-                         (i + 1, epoch_loss / batches, epoch_acc[0] / batches, epoch_acc[1] / batches, epoch_acc[2] / batches, batch_end - batch_start))
+                logging.info('\tBatch %d: Loss %.5f(%.3f  %.3f  %.3f), Accuracy: Top-1 %.2f, Top-3 %.2f, Top-5 %.2f, Time %3.2f' %
+                         (i + 1, (epoch_loss[0]+epoch_loss[1]+epoch_loss[2]) / batches, epoch_loss[0] / batches, epoch_loss[1] / batches, epoch_loss[2] / batches,
+                          epoch_acc[0] / batches, epoch_acc[1] / batches, epoch_acc[2] / batches, batch_end - batch_start))
 
 
     # end of validation
