@@ -56,7 +56,7 @@ class BAP_v2(nn.Module):
         I = torch.einsum('bmhw, bfhw -> bmf', attentions, features) # (B, M, F)
         #print(I.size())
         I /= H*W
-        #I = torch.mul(torch.sign(I), torch.sqrt(torch.abs(I)+1e-12))
+        I = torch.mul(torch.sign(I), torch.sqrt(torch.abs(I)+1e-12))
         I = I.view(B, -1) # (B, M*F)
         I = nn.functional.normalize(I)
         
@@ -125,7 +125,7 @@ class WSDAN(nn.Module):
         #print('Embedding zero-rate:', (embeddings==0).sum().float() / embeddings.numel(), '\n', embeddings[0, :])
 
         # Classification
-        p = self.fc(embeddings) # weird that original implementation in tensorflow multiplies a constant 100
+        p = self.fc(100*embeddings) # weird that original implementation in tensorflow multiplies a constant 100
 
         # Generate Attention Map
         #print('attention_maps:', attention_maps.size())

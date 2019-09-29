@@ -164,6 +164,7 @@ def main():
             val_loss = validate(data_loader=validate_loader,
                                 net=net,
                                 loss=loss,
+                                loss_metric=loss_metric,
                                 verbose=options.verbose)                  
         scheduler.step()
 
@@ -217,27 +218,20 @@ def train(**kwargs):
         #print('RAW y_pred:\n', y_pred[0, ...], '\n', y_pred[2, ...])
 
         # loss
-        metric_loss = loss_metric(embeddings)
+        metric_loss_homo, metric_loss_heter = loss_metric(embeddings)
         #if not options.freeze:
         loss_classify = loss(y_pred, y)
         loss_center = center_loss(embeddings, feature_center[y])
-        batch_loss = loss_classify + loss_center + metric_loss[0] + metric_loss[1]
-        epoch_loss_raw[0] += batch_loss.item()
+        epoch_loss_raw[0] += (loss_classify+loss_center+metric_loss_homo+metric_loss_heter).item()
         epoch_loss_raw[1] += loss_classify.item()
         epoch_loss_raw[2] += loss_center.item()
-        epoch_loss_raw[3] += metric_loss[0].item()
-        epoch_loss_raw[4] += metric_loss[1].item()
-            
-
-        # backward
-        optimizer.zero_grad()
-        batch_loss.backward()
-        optimizer.step()
+        epoch_loss_raw[3] += metric_loss_homo.item()
+        epoch_loss_raw[4] += metric_loss_heter.item()
 
         writer.add_scalars(main_tag='Raw', tag_scalar_dict={'classify': loss_classify.item(), 
                                                             'center': loss_center.item(),
-                                                            'homo': metric_loss[0].item(),
-                                                            'heter': metric_loss[1].item()}, global_step=step)
+                                                            'homo': metric_loss_homo.item(),
+                                                            'heter': metric_loss_heter.item()}, global_step=step)
         # vis gradient flow 
         if (1+i) % 100 == 0:
             writer.add_figure('Raw grad flow', plot_grad_flow_v2(net.named_parameters()), global_step=(i+1)//100)
@@ -249,81 +243,76 @@ def train(**kwargs):
         with torch.no_grad():
             epoch_acc[0] += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
 
-        if not options.raw:
-            ##################################
-            # Attention Cropping
-            ##################################
-            with torch.no_grad():
-                crop_images = []
-                for batch_index in range(attention_map.size(0)):
-                    theta = torch.max(attention_map[batch_index]) * np.random.uniform(0.4, 0.6)
-                    crop_mask = attention_map[batch_index] > theta
-                    nonzero_indices = torch.nonzero(crop_mask[0, ...])
-                    height_min = torch.clamp(nonzero_indices[:, 0].min().float() / attention_map.size(2) - 0.1, min=0) * X.size(2)
-                    height_max = torch.clamp(nonzero_indices[:, 0].max().float() / attention_map.size(2) + 0.1, max=1) * X.size(2)
-                    width_min = torch.clamp(nonzero_indices[:, 1].min().float() / attention_map.size(3) - 0.1, min=0) * X.size(3)
-                    width_max = torch.clamp(nonzero_indices[:, 1].max().float() / attention_map.size(3) + 0.1, max=1) * X.size(3)
-                    crop_images.append(F.upsample_bilinear(X[batch_index:batch_index + 1, :, int(height_min.item()):int(height_max.item()), 
-                                                                int(width_min.item()):int(width_max.item())], size=crop_size))
-                crop_images = torch.cat(crop_images, dim=0)
-                #print('raw image:', X[0, 0, ...])
-                #print('crop_images:', crop_images.size(), '\n', crop_images[0, 0, ...])
+        ##################################
+        # Attention Cropping
+        ##################################
+        with torch.no_grad():
+            crop_images = []
+            for batch_index in range(attention_map.size(0)):
+                theta = torch.max(attention_map[batch_index]) * np.random.uniform(0.4, 0.6)
+                crop_mask = attention_map[batch_index] > theta
+                nonzero_indices = torch.nonzero(crop_mask[0, ...])
+                height_min = torch.clamp(nonzero_indices[:, 0].min().float() / attention_map.size(2) - 0.1, min=0) * X.size(2)
+                height_max = torch.clamp(nonzero_indices[:, 0].max().float() / attention_map.size(2) + 0.1, max=1) * X.size(2)
+                width_min = torch.clamp(nonzero_indices[:, 1].min().float() / attention_map.size(3) - 0.1, min=0) * X.size(3)
+                width_max = torch.clamp(nonzero_indices[:, 1].max().float() / attention_map.size(3) + 0.1, max=1) * X.size(3)
+                crop_images.append(F.upsample_bilinear(X[batch_index:batch_index + 1, :, int(height_min.item()):int(height_max.item()), 
+                                                            int(width_min.item()):int(width_max.item())], size=crop_size))
+            crop_images = torch.cat(crop_images, dim=0)
+            #print('raw image:', X[0, 0, ...])
+            #print('crop_images:', crop_images.size(), '\n', crop_images[0, 0, ...])
 
-            # crop images forward
-            y_pred, embeddings_cropped, _ = net(crop_images)
+        # crop images forward
+        y_pred, embeddings_cropped, _ = net(crop_images)
 
-            # loss
-            metric_loss = loss_metric(embeddings_cropped)
-            loss_classify = loss(y_pred, y)
-            #embeddings = embeddings.detach()
-            #metric_l2 = l2_loss(embeddings_cropped, embeddings)
-            #batch_loss = metric_loss[0] + metric_loss[1] + metric_l2 
-            #if not options.freeze:
-            batch_loss = loss_classify + metric_loss[0] + metric_loss[1]
-            epoch_loss_crop[0] += batch_loss.item()
-            epoch_loss_crop[1] += loss_classify.item()
-            epoch_loss_crop[2] += metric_loss[0].item()
-            epoch_loss_crop[3] += metric_loss[1].item()
-            #epoch_loss[7] += metric_l2.item()
+        # loss
+        metric_loss = loss_metric(embeddings_cropped)
+        metric_loss_homo += metric_loss[0]
+        metric_loss_heter += metric_loss[1]
+        loss_crop_classify = loss(y_pred, y)
+        loss_classify += loss_crop_classify
+        
+        epoch_loss_crop[0] += (loss_crop_classify+metric_loss[0]+metric_loss[1]).item()
+        epoch_loss_crop[1] += loss_classify.item()
+        epoch_loss_crop[2] += metric_loss[0].item()
+        epoch_loss_crop[3] += metric_loss[1].item()
 
 
-            # backward
-            optimizer.zero_grad()
-            batch_loss.backward()
-            optimizer.step()
-            if (1+i) % 100 == 0:
-                writer.add_figure('Cropped grad flow', plot_grad_flow_v2(net.named_parameters()), global_step=(i+1)//100)
+        # backward
+        if (1+i) % 100 == 0:
+            writer.add_figure('Cropped grad flow', plot_grad_flow_v2(net.named_parameters()), global_step=(i+1)//100)
 
-            # metrics: top-1, top-3, top-5 error
-            with torch.no_grad():
-                epoch_acc[1] += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
+        # metrics: top-1, top-3, top-5 error
+        with torch.no_grad():
+            epoch_acc[1] += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
 
-            ##################################
-            # Attention Dropping
-            ##################################
-            if not options.freeze:
-                with torch.no_grad():
-                    drop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3)))
-                    for batch_index in range(attention_map.size(0)):
-                        theta = torch.max(attention_map[batch_index]) * np.random.uniform(0.4, 0.6)
-                        drop_mask[batch_index] = drop_mask[batch_index] < theta
-                    drop_images = X * drop_mask.float()
+        ##################################
+        # Attention Dropping
+        ##################################
+        with torch.no_grad():
+            drop_mask = F.upsample_bilinear(attention_map, size=(X.size(2), X.size(3)))
+            for batch_index in range(attention_map.size(0)):
+                theta = torch.max(attention_map[batch_index]) * np.random.uniform(0.4, 0.6)
+                drop_mask[batch_index] = drop_mask[batch_index] < theta
+            drop_images = X * drop_mask.float()
 
-                # drop images forward
-                y_pred, _, _ = net(drop_images)
+        # drop images forward
+        y_pred, _, _ = net(drop_images)
 
-                # loss
-                batch_loss = loss(y_pred, y)
-                epoch_loss_drop[0] += batch_loss.item()
+        # loss
+        loss_drop_classify = loss(y_pred, y)
+        loss_classify += loss_drop_classify
+        epoch_loss_drop[0] += loss_drop_classify.item()
 
-                # backward
-                optimizer.zero_grad()
-                batch_loss.backward()
-                optimizer.step()
+        # backward
+        batch_loss = loss_classify / 3 + (metric_loss_homo + metric_loss_heter) / 2 + loss_center
+        optimizer.zero_grad()
+        batch_loss.backward()
+        optimizer.step()
 
-                # metrics: top-1, top-3, top-5 error
-                with torch.no_grad():
-                    epoch_acc[2] += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
+        # metrics: top-1, top-3, top-5 error
+        with torch.no_grad():
+            epoch_acc[2] += accuracy(y_pred, y, topk=(1, 3, 5)).astype(np.float)
 
         # end of this batch
         batches += 1
@@ -374,6 +363,7 @@ def validate(**kwargs):
     data_loader = kwargs['data_loader']
     net = kwargs['net']
     loss = kwargs['loss']
+    loss_metric = kwargs['loss_metric']
     verbose = kwargs['verbose']
     #purpose = kwargs['purpose']
 
@@ -447,12 +437,14 @@ def validate(**kwargs):
     end_time = time.time()
 
     # metrics for average
-    epoch_loss /= batches
+    epoch_loss[0] /= batches
+    epoch_loss[1] /= batches
+    epoch_loss[2] /= batches
     epoch_acc /= batches
 
     # show information for this epoch
-    logging.info('Valid: Loss %.5f,  Accuracy: Top-1 %.2f, Top-3 %.2f, Top-5 %.2f, Time %3.2f'%
-                 (epoch_loss, epoch_acc[0], epoch_acc[1], epoch_acc[2], end_time - start_time))
+    logging.info('Valid: Loss %.4f (%.3f  %.3f  %.3f),  Accuracy: Top-1 %.2f, Top-3 %.2f, Top-5 %.2f, Time %3.2f'%
+                 (epoch_loss[0]+epoch_loss[1]+epoch_loss[2], epoch_loss[0], epoch_loss[1], epoch_loss[2], epoch_acc[0], epoch_acc[1], epoch_acc[2], end_time - start_time))
 
     return epoch_loss
 
