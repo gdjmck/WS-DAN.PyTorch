@@ -85,8 +85,8 @@ def test():
             ##################################
             # Raw Image
             ##################################
-            y_pred, feature_matrix, attention_map, metric = net(x)
-            result[fn] = metric.cpu().numpy()
+            y_pred, feature_matrix, attention_map = net(x)
+            result[fn] = feature_matrix.cpu().numpy()
             continue
 
             ##################################
