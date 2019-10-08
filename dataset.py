@@ -19,6 +19,17 @@ config = {
     'datapath': '/home/chk/car_kaggle/',
 }
 
+invTrans = transforms.Compose([ transforms.Normalize(mean = [ 0., 0., 0. ],
+                                                     std = [ 1/0.229, 1/0.224, 1/0.225 ]),
+                                transforms.Normalize(mean = [ -0.485, -0.456, -0.406 ],
+                                                     std = [ 1., 1., 1. ]),
+                               ])
+
+def save_image(ndarray, fn):
+    directory = fn.rsplit('/', 1)
+    if not os.path.exists(directory[0]):
+        os.makedirs(directory[0])
+    Image.fromarray(ndarray).save(fn)
 
 class CustomDataset(Dataset):
     """
@@ -82,6 +93,20 @@ class ImageFolderWithName(datasets.ImageFolder):
         root = os.path.join(config['datapath'], phase)
         super().__init__(root=root, transform=self.transforms, *args, **kwargs)
         self.return_fn = (phase == 'test') or (phase == 'val')
+        
+    @classmethod
+    def tensor2img(cls, tensor):
+        if type(tensor) != np.ndarray:
+            tensor = tensor.cpu().numpy()
+
+        if len(tensor.shape) == 4:
+            imgs = []
+            for i in range(tensor.shape[0]):
+                imgs.extend(cls.tensor2img(tensor[i, ...]))
+            return imgs
+        assert tensor.shape[0] == 3
+        img = np.transpose(tensor, (1, 2, 0))
+        return [img*255]
 
     def __getitem__(self, i):
         img, label = super(ImageFolderWithName, self).__getitem__(i)

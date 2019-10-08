@@ -123,3 +123,18 @@ def plot_grad_flow_v2(named_parameters):
                 Line2D([0], [0], color="b", lw=4),
                 Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
     return fig
+
+def rescale_padding(tensor, size):
+    scale = float(size) / max(tensor.size(-1), tensor.size(-2))
+    target = torch.nn.functional.interpolate(tensor, scale_factor=scale)
+    if target.size(2) >= target.size(3):
+        # h > w, padding to left and right
+        margin = size - target.size(3)
+        pad = [margin//2, margin-margin//2, size-target.size(2), 0]
+    else:
+        margin = size - target.size(2)
+        pad = [size-target.size(3), 0, margin//2, margin-margin//2]
+    target = torch.nn.functional.pad(target, pad)
+    return target
+               
+               

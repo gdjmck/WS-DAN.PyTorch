@@ -58,7 +58,6 @@ class BAP_v2(nn.Module):
         I /= H*W
         I = torch.mul(torch.sign(I), torch.sqrt(torch.abs(I)+1e-12))
         I = I.view(B, -1) # (B, M*F)
-        I = nn.functional.normalize(I)
         
         return I.view(B, M, F)
 
@@ -103,10 +102,10 @@ class WSDAN(nn.Module):
         
         # Conv1d squeeze all attentions
         self.squeeze = nn.Conv2d(self.M, 1, 1)
-        self.norm = nn.Sequential(nn.BatchNorm1d(self.num_features * self.expansion), nn.ReLU(inplace=True))
 
         # Classification Layer
-        self.fc = nn.Sequential(nn.BatchNorm1d(self.num_features*self.expansion), nn.Linear(self.num_features * self.expansion, self.num_classes))
+        self.fc = nn.Sequential(nn.BatchNorm1d(self.num_features * self.expansion), 
+                                nn.Linear(self.num_features * self.expansion, self.num_classes))
 
         logging.info('WSDAN: using %s as feature extractor' % self.baseline)
 
@@ -121,11 +120,11 @@ class WSDAN(nn.Module):
         embeddings = self.bap(feature_maps, attention_maps) # (B, M, F)
         #print('BAP zero-rate:', (embeddings==0).sum().float() / embeddings.numel(), '\n', embeddings[0, ...])
         embeddings = self.squeeze(embeddings.unsqueeze(-1)).view(-1, self.num_features) # (B, F)
-        embeddings = self.norm(embeddings)
+        embeddings = nn.functional.normalize(embeddings)
         #print('Embedding zero-rate:', (embeddings==0).sum().float() / embeddings.numel(), '\n', embeddings[0, :])
 
         # Classification
-        p = self.fc(100*embeddings) # weird that original implementation in tensorflow multiplies a constant 100
+        p = self.fc(embeddings) # weird that original implementation in tensorflow multiplies a constant 100
 
         # Generate Attention Map
         #print('attention_maps:', attention_maps.size())
@@ -145,6 +144,8 @@ class WSDAN(nn.Module):
         else:
             # Object Localization Am = mean(sum(Ak))
             attention_map = torch.mean(attention_maps, dim=1, keepdim=True)  # (B, 1, H, W)
+            #print('Test phase attention zero-rate', (attention_map==0).sum().float() / attention_map.numel())
+            #print(attention_map[0, ...])
         '''
         # Normalize Attention Map
         attention_map = attention_map.view(batch_size, -1)  # (B, H * W)
