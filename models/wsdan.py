@@ -61,6 +61,30 @@ class BAP_v2(nn.Module):
         
         return I.view(B, M, F)
 
+def _fire_rate(att_map, theta=0.5):
+    whole_area = float(att_map.size(-1)* att_map.size(-2))
+    t = torch.max(att_map) * theta
+    mask = att_map > t
+    nonzero_indices = torch.nonzero(mask)
+    height_min = nonzero_indices[:, 0].min()
+    height_max = nonzero_indices[:, 0].max()
+    width_min = nonzero_indices[:, 1].min()
+    width_max = nonzero_indices[:, 1].max()
+    area = (1 + height_max - height_min) * (1 + width_max - width_min)
+    if area < 100:
+        return 0
+    #print('fire: ', len(nonzero_indices), '\tarea: ', area)
+    return float(len(nonzero_indices)) * 0.5 * (1/area.float() + 1/whole_area)
+
+def fire_rate(att_map, theta=0.5):
+    #print('=================================')
+    B, N = att_map.size(0), att_map.size(1)
+    weights = att_map.new(B, N)
+    for b in range(B):
+        for i in range(N):
+            weights[b, i] = _fire_rate(att_map[b, i, ...], theta)
+        #print('weights[%d, :]'%b, weights[b, :])
+    return weights
 
 # WS-DAN: Weakly Supervised Data Augmentation Network for FGVC
 class WSDAN(nn.Module):
@@ -131,9 +155,14 @@ class WSDAN(nn.Module):
         H, W = attention_maps.size(2), attention_maps.size(3)
         if self.training:
             # Randomly choose one of attention maps Ak
-            part_weights = attention_maps.mean(dim=(2, 3)) # (B, atts)
-            #print(part_weights.size())
+            part_weights = fire_rate(attention_maps)
+            #fire_weights /= fire_weights.max(dim=-1, keepdim=True)[0]
+            #part_weights = attention_maps.mean(dim=(2, 3)) # (B, atts)
+            #part_weights /= part_weights.max(dim=-1, keepdim=True)[0]
+            #print(np.nanmean((part_weights / (fire_weights+part_weights)).cpu().data.numpy()))
             part_weights = torch.sqrt(part_weights + 1e-12)
+            #print('=============================\npart_weights', part_weights)
+            #part_weights += 2*fire_weights
             part_weights = torch.div(part_weights, part_weights.sum(dim=1, keepdim=True))
             part_weights = part_weights.cpu().detach().numpy()
             attention_map = torch.zeros(batch_size, 1, H, W).to(torch.device("cuda"))  # (B, 1, H, W)

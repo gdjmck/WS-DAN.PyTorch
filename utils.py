@@ -136,5 +136,30 @@ def rescale_padding(tensor, size):
         pad = [size-target.size(3), 0, margin//2, margin-margin//2]
     target = torch.nn.functional.pad(target, pad)
     return target
-               
-               
+
+def rescale_central(tensor, borders, target_size):
+    H, W = tensor.size(-2), tensor.size(-1)
+    top, bottom, left, right = borders
+    h, w = bottom - top, right - left
+    gap = abs(h-w)
+    if h > w:
+        left -= gap//2
+        right = left + h
+        if left < 0:
+            right -= left
+            left = 0
+        if right >= W:
+            left -= right - W + 1
+            right = W - 1
+    elif w > h:
+        top -= gap//2
+        bottom = top + w
+        if top < 0:
+            bottom -= top
+            top = 0
+        if bottom >= H:
+            top -= bottom - H + 1
+            bottom = H - 1
+    assert (bottom - top) == (right - left)
+    
+    return torch.nn.functional.interpolate(tensor[..., top: bottom, left: right], (target_size, target_size))

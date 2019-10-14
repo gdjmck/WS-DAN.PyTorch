@@ -17,7 +17,7 @@ from optparse import OptionParser
 from tensorboardX import SummaryWriter
 from torchsummary import summary
 
-from utils import accuracy, MetricLoss, plot_grad_flow_v2, center_loss, rescale_padding
+from utils import accuracy, MetricLoss, plot_grad_flow_v2, center_loss, rescale_padding, rescale_central
 from models import *
 import dataset
 from dataset import *
@@ -199,7 +199,7 @@ def train(**kwargs):
     # metrics initialization
     batches = 0
     epoch_loss_raw = np.array([0, 0, 0, 0, 0], dtype='float')  # loss_sum(classify, center, homo, heter)
-    epoch_loss_crop = np.array([0, 0, 0, 0], dtype='float') # loss_sum(classify, homo, heter)
+    epoch_loss_crop = np.array([0, 0, 0, 0, 0], dtype='float') # loss_sum(classify, homo, heter)
     epoch_loss_drop = np.array([0], dtype='float')
     epoch_acc = np.array([[0, 0, 0],
                           [0, 0, 0],
@@ -241,8 +241,7 @@ def train(**kwargs):
                                                             'heter': metric_loss_heter.item()}, global_step=step)
         # vis gradient flow 
         if (1+i) % 100 == 0:
-            writer.add_figure('Raw_grad_flow', plot_grad_flow_v2(net.named_parameters()), global_step=(i+1)//100)
-            writer.add_image('Raw_Image', dataset.invTrans(X[0, ...]), global_step=(i+1)//100)
+            writer.add_figure('Raw_grad_flow', plot_grad_flow_v2(net.named_parameters()), global_step=(step+1)//100)
 
         # Update Feature Center
         embed = embeddings.detach()
@@ -266,8 +265,11 @@ def train(**kwargs):
                 height_max = torch.clamp(nonzero_indices[:, 0].max().float() / attention_map.size(2) + 0.01, max=1) * X.size(2)
                 width_min = torch.clamp(nonzero_indices[:, 1].min().float() / attention_map.size(3) - 0.01, min=0) * X.size(3)
                 width_max = torch.clamp(nonzero_indices[:, 1].max().float() / attention_map.size(3) + 0.01, max=1) * X.size(3)
-                crop_images.append(rescale_padding(X[batch_index:batch_index + 1, :, int(height_min.item()):int(height_max.item()), 
-                                                            int(width_min.item()):int(width_max.item())], size=crop_size[0]))
+                if (height_min == height_max) or (width_min == width_max):
+                    crop_images.append(X)
+                else:
+                    crop_images.append(rescale_central(X[batch_index:batch_index + 1, ...], [int(height_min.item()), int(height_max.item()), 
+                                                                int(width_min.item()), int(width_max.item())], crop_size[0]))
             crop_images = torch.cat(crop_images, dim=0)
             # save crop images to ./images/
             if save_crop_image:
@@ -285,18 +287,19 @@ def train(**kwargs):
         metric_loss = loss_metric(embeddings_cropped)
         metric_loss_homo += metric_loss[0]
         metric_loss_heter += metric_loss[1]
+        embedding_loss = center_loss(embeddings_cropped, embed)
         loss_crop_classify = loss(y_pred, y)
         loss_classify += loss_crop_classify
         
-        epoch_loss_crop[0] += (loss_crop_classify+metric_loss[0]+metric_loss[1]).item()
-        epoch_loss_crop[1] += loss_crop_classify.item()
-        epoch_loss_crop[2] += metric_loss[0].item()
-        epoch_loss_crop[3] += metric_loss[1].item()
-
+        epoch_loss_crop += np.array([(loss_crop_classify+metric_loss[0]+metric_loss[1]).item(),
+                                      loss_crop_classify.item(),
+                                      metric_loss[0].item(),
+                                      metric_loss[1].item(),
+                                      embedding_loss.item()])
 
         if (1+i) % 100 == 0:
-            writer.add_figure('Cropped_grad_flow', plot_grad_flow_v2(net.named_parameters()), global_step=(i+1)//100)
-            writer.add_image('Crop Image', dataset.invTrans(crop_images[0, ...]), global_step=(i+1)//100)
+            writer.add_figure('Cropped_grad_flow', plot_grad_flow_v2(net.named_parameters()), global_step=(step+1)//100)
+            writer.add_image('Crop Image', dataset.invTrans(crop_images[0, ...]), global_step=(step+1)//100)
 
         # metrics: top-1, top-3, top-5 error
         with torch.no_grad():
@@ -319,7 +322,7 @@ def train(**kwargs):
                     dataset.save_image(img, './images/'+fn[-2]+'/'+fn[-1].replace('.', '_drop.'))
                     
         if (1+i) % 100 == 0:
-            writer.add_image('Drop_Image', dataset.invTrans(drop_images[0, ...]), global_step=(i+1)//100)
+            writer.add_image('Drop_Image', dataset.invTrans(drop_images[0, ...]), global_step=(step+1)//100)
 
         # drop images forward
         y_pred, _, _ = net(drop_images)
@@ -330,7 +333,7 @@ def train(**kwargs):
         epoch_loss_drop[0] += loss_drop_classify.item()
 
         # backward
-        batch_loss = loss_classify / 3 + (metric_loss_homo + metric_loss_heter) / 4 + loss_center
+        batch_loss = loss_classify / 3 + (metric_loss_homo + metric_loss_heter) / 4 + loss_center + embedding_loss
         optimizer.zero_grad()
         batch_loss.backward()
         optimizer.step()
@@ -344,11 +347,11 @@ def train(**kwargs):
         step += 1
         batch_end = time.time()
         if (i + 1) % verbose == 0:
-            logging.info('\tBatch %d: (Raw) Loss %.3f (%.3f, %.3f, %.3f, %.3f), Accuracy: (%.2f, %.2f, %.2f), (Crop) Loss %.3f (%.3f, %.3f, %.3f), Accuracy: (%.2f, %.2f, %.2f), (Drop) Loss %.3f, Accuracy: (%.2f, %.2f, %.2f), Time %3.2f' %
+            logging.info('\tBatch %d: (Raw) Loss %.3f (%.3f, %.3f, %.3f, %.3f), Accuracy: (%.2f, %.2f, %.2f), (Crop) Loss %.3f (%.3f, %.3f, %.3f, %.3f), Accuracy: (%.2f, %.2f, %.2f), (Drop) Loss %.3f, Accuracy: (%.2f, %.2f, %.2f), Time %3.2f' %
                          (i + 1,
                           epoch_loss_raw[0] / batches, epoch_loss_raw[1] / batches, epoch_loss_raw[2] / batches, epoch_loss_raw[3] / batches, epoch_loss_raw[4] / batches,
                           epoch_acc[0, 0] / batches, epoch_acc[0, 1] / batches, epoch_acc[0, 2] / batches,
-                          epoch_loss_crop[0] / batches, epoch_loss_crop[1] / batches, epoch_loss_crop[2] / batches, epoch_loss_crop[3] / batches, 
+                          epoch_loss_crop[0] / batches, epoch_loss_crop[1] / batches, epoch_loss_crop[2] / batches, epoch_loss_crop[3] / batches, epoch_loss_crop[4] / batches,
                           epoch_acc[1, 0] / batches, epoch_acc[1, 1] / batches, epoch_acc[1, 2] / batches,
                           epoch_loss_drop[0] / batches, epoch_acc[2, 0] / batches, epoch_acc[2, 1] / batches, epoch_acc[2, 2] / batches,
                           batch_end - batch_start))
@@ -394,7 +397,7 @@ def validate(**kwargs):
     #purpose = kwargs['purpose']
 
     # Default Parameters
-    theta_c = 0.5
+    theta_c = 0.8
     crop_size = (256, 256)  # size of cropped images for 'See Better'
 
     # metrics initialization
