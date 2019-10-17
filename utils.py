@@ -42,6 +42,15 @@ def center_loss(features, centers):
     distance = (features - centers) ** 2
     return distance.sum() / batch_size
 
+def triplet_loss(anchor, homo, heter, t=0.3):
+    #print('anchor:', anchor.size(), '\thomo:', homo.size(), '\theter:', heter.size())
+    batch_size = homo.size(0)
+    d_homo = (anchor - homo).pow(2).sum(dim=1)
+    d_heter = (anchor - heter).pow(2).sum(dim=1)
+    d = torch.nn.functional.relu(d_homo + t - d_heter)
+    #print('dist:', d.size())
+    return d.mean()
+
 
 class MetricLoss(torch.nn.Module):
     def __init__(self, batch_k):
@@ -66,7 +75,29 @@ class MetricLoss(torch.nn.Module):
                     loss_heter += L_metric(anchor, x[j: j+1, ...], same_class=False)
                     cnt_heter += 1
         return loss_homo / cnt_homo, loss_heter / cnt_heter
+        
 
+class TripletLoss(MetricLoss):
+    def forward(self, x):
+        loss = 0
+        cnt = 0
+        batch_size = x.size(0)
+        for group_index in range(batch_size//self.batch_k):
+            for i in range(self.batch_k):
+                anchor = x[i+group_index*self.batch_k: 1+i+group_index*self.batch_k, ...]
+                homos = []
+                for j in range(self.batch_k):
+                    if i == j:
+                        continue
+                    homos.append(x[j+group_index*self.batch_k: 1+j+group_index*self.batch_k, ...])
+                homo = torch.cat(homos, 0)
+                for j in range(batch_size):
+                    if group_index * self.batch_k <= j < (group_index+1)*self.batch_k:
+                        continue
+                    heter = x[j: j+1, ...]
+                    loss += triplet_loss(anchor, homo, heter)
+                    cnt += 1
+        return loss / cnt
 
 def plot_grad_flow(named_parameters):
     ave_grads = []

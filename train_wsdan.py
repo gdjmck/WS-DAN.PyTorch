@@ -17,7 +17,7 @@ from optparse import OptionParser
 from tensorboardX import SummaryWriter
 from torchsummary import summary
 
-from utils import accuracy, MetricLoss, plot_grad_flow_v2, center_loss, rescale_padding, rescale_central
+from utils import accuracy, TripletLoss, plot_grad_flow_v2, center_loss, rescale_padding, rescale_central
 from models import *
 import dataset
 from dataset import *
@@ -138,7 +138,8 @@ def main():
     train_params = net.parameters()
     optimizer = torch.optim.SGD(train_params, lr=options.lr, momentum=0.9, weight_decay=0.00001)
     loss = nn.CrossEntropyLoss()
-    loss_metric = MetricLoss(options.batch_k)
+    #loss_metric = MetricLoss(options.batch_k)
+    loss_metric = TripletLoss(options.batch_k)
 
     ##################################
     # Learning rate scheduling
@@ -199,7 +200,7 @@ def train(**kwargs):
     # metrics initialization
     batches = 0
     epoch_loss_raw = np.array([0, 0, 0, 0, 0], dtype='float')  # loss_sum(classify, center, homo, heter)
-    epoch_loss_crop = np.array([0, 0, 0, 0, 0], dtype='float') # loss_sum(classify, homo, heter)
+    epoch_loss_crop = np.array([0, 0, 0, 0], dtype='float') # loss_sum(classify, triplet)
     epoch_loss_drop = np.array([0], dtype='float')
     epoch_acc = np.array([[0, 0, 0],
                           [0, 0, 0],
@@ -225,20 +226,18 @@ def train(**kwargs):
         #print('RAW y_pred:\n', y_pred[0, ...], '\n', y_pred[2, ...])
 
         # loss
-        metric_loss_homo, metric_loss_heter = loss_metric(embeddings)
+        loss_triplet = loss_metric(embeddings)
         #if not options.freeze:
         loss_classify = loss(y_pred, y)
         loss_center = center_loss(embeddings, feature_center[y])
-        epoch_loss_raw[0] += (loss_classify+loss_center+metric_loss_homo+metric_loss_heter).item()
+        epoch_loss_raw[0] += (loss_classify+loss_center+loss_triplet).item()
         epoch_loss_raw[1] += loss_classify.item()
         epoch_loss_raw[2] += loss_center.item()
-        epoch_loss_raw[3] += metric_loss_homo.item()
-        epoch_loss_raw[4] += metric_loss_heter.item()
+        epoch_loss_raw[3] += loss_triplet.item()
 
         writer.add_scalars(main_tag='Raw', tag_scalar_dict={'classify': loss_classify.item(), 
                                                             'center': loss_center.item(),
-                                                            'homo': metric_loss_homo.item(),
-                                                            'heter': metric_loss_heter.item()}, global_step=step)
+                                                            'triplet': loss_triplet.item()}, global_step=step)
         # vis gradient flow 
         if (1+i) % 100 == 0:
             writer.add_figure('Raw_grad_flow', plot_grad_flow_v2(net.named_parameters()), global_step=(step+1)//100)
@@ -284,17 +283,15 @@ def train(**kwargs):
         y_pred, embeddings_cropped, _ = net(crop_images)
 
         # loss
-        metric_loss = loss_metric(embeddings_cropped)
-        metric_loss_homo += metric_loss[0]
-        metric_loss_heter += metric_loss[1]
+        loss_triplet_crop = loss_metric(embeddings_cropped)
+        loss_triplet += loss_triplet_crop
         embedding_loss = center_loss(embeddings_cropped, embed)
         loss_crop_classify = loss(y_pred, y)
         loss_classify += loss_crop_classify
         
-        epoch_loss_crop += np.array([(loss_crop_classify+metric_loss[0]+metric_loss[1]).item(),
+        epoch_loss_crop += np.array([(loss_crop_classify+loss_triplet_crop).item(),
                                       loss_crop_classify.item(),
-                                      metric_loss[0].item(),
-                                      metric_loss[1].item(),
+                                      loss_triplet_crop.item(),
                                       embedding_loss.item()])
 
         if (1+i) % 100 == 0:
@@ -333,7 +330,7 @@ def train(**kwargs):
         epoch_loss_drop[0] += loss_drop_classify.item()
 
         # backward
-        batch_loss = loss_classify / 3 + (metric_loss_homo + metric_loss_heter) / 4 + loss_center + embedding_loss
+        batch_loss = loss_classify / 3 + loss_triplet / 2 + loss_center + embedding_loss
         optimizer.zero_grad()
         batch_loss.backward()
         optimizer.step()
@@ -347,11 +344,11 @@ def train(**kwargs):
         step += 1
         batch_end = time.time()
         if (i + 1) % verbose == 0:
-            logging.info('\tBatch %d: (Raw) Loss %.3f (%.3f, %.3f, %.3f, %.3f), Accuracy: (%.2f, %.2f, %.2f), (Crop) Loss %.3f (%.3f, %.3f, %.3f, %.3f), Accuracy: (%.2f, %.2f, %.2f), (Drop) Loss %.3f, Accuracy: (%.2f, %.2f, %.2f), Time %3.2f' %
+            logging.info('\tBatch %d: (Raw) Loss %.3f (%.3f, %.3f, %.3f, %.3f), Accuracy: (%.2f, %.2f, %.2f), (Crop) Loss %.3f (%.3f, %.3f, %.3f), Accuracy: (%.2f, %.2f, %.2f), (Drop) Loss %.3f, Accuracy: (%.2f, %.2f, %.2f), Time %3.2f' %
                          (i + 1,
                           epoch_loss_raw[0] / batches, epoch_loss_raw[1] / batches, epoch_loss_raw[2] / batches, epoch_loss_raw[3] / batches, epoch_loss_raw[4] / batches,
                           epoch_acc[0, 0] / batches, epoch_acc[0, 1] / batches, epoch_acc[0, 2] / batches,
-                          epoch_loss_crop[0] / batches, epoch_loss_crop[1] / batches, epoch_loss_crop[2] / batches, epoch_loss_crop[3] / batches, epoch_loss_crop[4] / batches,
+                          epoch_loss_crop[0] / batches, epoch_loss_crop[1] / batches, epoch_loss_crop[2] / batches, epoch_loss_crop[3] / batches,
                           epoch_acc[1, 0] / batches, epoch_acc[1, 1] / batches, epoch_acc[1, 2] / batches,
                           epoch_loss_drop[0] / batches, epoch_acc[2, 0] / batches, epoch_acc[2, 1] / batches, epoch_acc[2, 2] / batches,
                           batch_end - batch_start))
@@ -453,8 +450,7 @@ def validate(**kwargs):
             classify_raw_loss = loss(y_pred_raw, y)
             metric_loss = loss_metric(embeddings)
             epoch_loss[0] += classify_raw_loss.item()
-            epoch_loss[1] += metric_loss[0].item()
-            epoch_loss[2] += metric_loss[1].item()
+            epoch_loss[1] += metric_loss.item()
 
             # metrics: top-1, top-3, top-5 error
             epoch_acc_raw += accuracy(y_pred_raw, y, topk=(1, 3, 5)).astype(np.float)
